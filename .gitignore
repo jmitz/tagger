@@ -1,0 +1,10 @@
+# PlatformIO build output
+.pio/
+.vscode/
+# ESPHome build output and secrets
+.esphome/
+secrets.yaml
+
+# 16 MB factory flash image: kept locally in firmware-backup/, not versioned.
+# Its checksum (factory_backup_16MB.bin.sha256) and boot log are committed.
+firmware-backup/*.bin

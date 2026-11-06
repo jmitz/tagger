@@ -1,0 +1,190 @@
+ESP-ROM:esp32s3-20210327
+Build:Mar 27 2021
+rst:0x15 (USB_UART_CHIP_RESET),boot:0x8 (SPI_FAST_FLASH_BOOT)
+Saved PC:0x4037c15a
+SPIWP:0xee
+mode:DIO, clock div:1
+load:0x3fce2820,len:0x1668
+load:0x403c8700,len:0xec0
+load:0x403cb700,len:0x317c
+entry 0x403c894c
+I (24) boot: ESP-IDF v5.5.4 2nd stage bootloader
+I (24) boot: compile time Sep 11 2026 16:09:47
+I (25) boot: Multicore bootloader
+I (25) boot: chip revision: v0.2
+I (27) boot: efuse block revision: v1.4
+I (31) qio_mode: Enabling default flash chip QIO
+I (35) boot.esp32s3: Boot SPI Speed : 80MHz
+I (39) boot.esp32s3: SPI Mode       : QIO
+I (43) boot.esp32s3: SPI Flash Size : 16MB
+I (47) boot: Enabling RNG early entropy source...
+I (51) boot: Partition Table:
+I (54) boot: ## Label            Usage          Type ST Offset   Length
+I (60) boot:  0 nvs              WiFi data        01 02 00009000 00006000
+I (67) boot:  1 phy_init         RF data          01 01 0000f000 00001000
+I (73) boot:  2 factory          factory app      00 00 00010000 00600000
+I (80) boot: End of partition table
+I (83) esp_image: segment 0: paddr=00010020 vaddr=3c0f0020 size=342b4h (213684) map
+I (122) esp_image: segment 1: paddr=000442dc vaddr=3fc9f600 size=06b78h ( 27512) load
+I (128) esp_image: segment 2: paddr=0004ae5c vaddr=40374000 size=051bch ( 20924) load
+I (132) esp_image: segment 3: paddr=00050020 vaddr=42000020 size=e243ch (926780) map
+I (271) esp_image: segment 4: paddr=00132464 vaddr=403791bc size=163c8h ( 91080) load
+I (289) esp_image: segment 5: paddr=00148834 vaddr=50000000 size=00020h (    32) load
+I (300) boot: Loaded app from partition at offset 0x10000
+I (300) boot: Disabling RNG early entropy source...
+I (311) octal_psram: vendor id    : 0x0d (AP)
+I (311) octal_psram: dev id       : 0x02 (generation 3)
+I (311) octal_psram: density      : 0x03 (64 Mbit)
+I (313) octal_psram: good-die     : 0x01 (Pass)
+I (317) octal_psram: Latency      : 0x01 (Fixed)
+I (321) octal_psram: VCC          : 0x01 (3V)
+I (326) octal_psram: SRF          : 0x01 (Fast Refresh)
+I (330) octal_psram: BurstType    : 0x01 (Hybrid Wrap)
+I (335) octal_psram: BurstLen     : 0x01 (32 Byte)
+I (340) octal_psram: Readlatency  : 0x02 (10 cycles@Fixed)
+I (345) octal_psram: DriveStrength: 0x00 (1/1)
+I (349) MSPI Timing: Enter psram timing tuning
+I (354) esp_psram: Found 8MB PSRAM device
+I (357) esp_psram: Speed: 80MHz
+I (360) cpu_start: Multicore app
+I (796) esp_psram: SPI SRAM memory test OK
+I (804) cpu_start: GPIO 44 and 43 are used as console UART I/O pins
+I (804) cpu_start: Pro cpu start user code
+I (804) cpu_start: cpu freq: 240000000 Hz
+I (806) app_init: Application information:
+I (810) app_init: Project name:     factory
+I (814) app_init: App version:      1
+I (817) app_init: Compile time:     Sep 11 2026 16:09:13
+I (822) app_init: ELF file SHA256:  66d8cafa4...
+I (827) app_init: ESP-IDF:          v5.5.4
+I (830) efuse_init: Min chip rev:     v0.0
+I (834) efuse_init: Max chip rev:     v0.99 
+I (838) efuse_init: Chip rev:         v0.2
+I (842) heap_init: Initializing. RAM available for dynamic allocation:
+I (848) heap_init: At 3FCB70C8 len 00032648 (201 KiB): RAM
+I (854) heap_init: At 3FCE9710 len 00005724 (21 KiB): RAM
+I (859) heap_init: At 3FCF0000 len 00008000 (32 KiB): DRAM
+I (864) heap_init: At 600FE000 len 00001FE8 (7 KiB): RTCRAM
+I (869) esp_psram: Adding pool of 8192K of PSRAM memory to heap allocator
+I (876) spi_flash: detected chip: generic
+I (879) spi_flash: flash io: qio
+I (883) sleep_gpio: Configure to isolate all GPIO pins in sleep state
+I (889) sleep_gpio: Enable automatic switching of GPIO sleep configuration
+I (896) main_task: Started on CPU0
+I (906) esp_psram: Reserving pool of 32K of internal memory for DMA/internal allocations
+I (906) main_task: Calling app_main()
+I (1126) esp_3inch5_lcd_port: SPI BUS init
+I (1126) esp_3inch5_lcd_port: Install panel IO
+W (1366) st7796: The 3Ah command has been used and will be overwritten by external initialization sequence
+I (1486) AXP2101: Implemented using read and write callback methods
+I (1486) AXP2101: Init PMU SUCCESS!
+getID:0x4a
+->  getSysPowerDownVoltage:2600
+->  getSysPowerDownVoltage:2600
+DC1  : +   Voltage:3300 mV 
+DC2  : +   Voltage:1000 mV 
+DC3  : +   Voltage:3300 mV 
+DC4  : +   Voltage:1000 mV 
+DC5  : +   Voltage:3300 mV 
+DCDC=======================================================================
+DC1  : +   Voltage:3300 mV 
+DC2  : +   Voltage:1000 mV 
+DC3  : +   Voltage:3300 mV 
+DC4  : +   Voltage:1000 mV 
+DC5  : +   Voltage:3300 mV 
+ALDO=======================================================================
+ALDO1: +   Voltage:3300 mV
+ALDO2: +   Voltage:3300 mV
+ALDO3: +   Voltage:3300 mV
+ALDO4: +   Voltage:3300 mV
+BLDO=======================================================================
+BLDO1: +   Voltage:1500 mV
+BLDO2: +   Voltage:2800 mV
+CPUSLDO====================================================================
+CPUSLDO: + Voltage:1000 mV
+DLDO=======================================================================
+DLDO1: +   Voltage:3300 mV
+DLDO2: +   Voltage:3300 mV
+===========================================================================
+PowerKeyPressOffTime:4 Second
+PowerKeyPressOnTime:128 Ms
+===========================================================================
+getDCHighVoltagePowerDownEn:ENABLE
+getDC1LowVoltagePowerDownEn:ENABLE
+getDC2LowVoltagePowerDownEn:ENABLE
+getDC3LowVoltagePowerDownEn:ENABLE
+getDC4LowVoltagePowerDownEn:ENABLE
+getDC5LowVoltagePowerDownEn:ENABLE
+I (1706) ES8311: Work in Slave mode
+I (1706) I2S_IF: channel mode 0 bits:16/16 channel:2 mask:1
+I (1716) I2S_IF: STD Mode 1 bits:16/16 channel:2 sample_rate:48000 mask:1
+I (1726) Adev_Codec: Open codec device OK
+I (1726) I2S_IF: channel mode 0 bits:16/16 channel:2 mask:1
+I (1726) I2S_IF: STD Mode 0 bits:16/16 channel:2 sample_rate:48000 mask:1
+I (1736) Adev_Codec: Open codec device OK
+Using ESP-IDF Driver interface.Added Device Address : 0x6B  New Dev Address: 0x3c131300 Speed :400000 FW Version :0x080301USID :341EB98C9AD1Device ID: 7c
+reg_var : 0reg_var : 0reg_var : 1Data is ready for reading....reg_var : 1reg_var : 0
+	dVX_mg:765.00000000000 
+	dVY_mg:654.50000000000 
+	dVZ_mg:582.50000000000Accelerometer is working properly.
+Accelerometer self-test successful!
+Data is ready for reading....
+	dVX:  37632.2500 
+	dVY:  26112.2500 
+	dVZ:  27136.1875Gyro is working properly.
+Gyroscope self-test successful!
+CTRL1: 0x60
+CTRL2: 0x13
+CTRL3: 0x23
+CTRL4: 0x00
+CTRL5: 0x71
+CTRL6: 0x00
+CTRL7: 0x03
+CTRL8: 0x80
+CTRL9: 0x00
+FIFO_CTRL: REG:0x14 HEX:0x00
+Using ESP-IDF Driver interface.Added Device Address : 0x51  New Dev Address: 0x3c131324 Speed :400000 I (2146) esp_sdcard_port: Initializing SD card
+I (2156) esp_sdcard_port: Using SDMMC peripheral
+I (2166) esp_sdcard_port: Mounting filesystem
+E (2186) sdmmc_common: sdmmc_init_ocr: send_op_cond (1) returned 0x107
+E (2186) vfs_fat_sdmmc: sdmmc_card_init failed (0x107).
+E (2186) esp_sdcard_port: Failed to initialize the card (ESP_ERR_TIMEOUT). Make sure SD card lines have pull-up resistors in place.
+I (2196) s3 ll_cam: DMA Channel=2
+I (2206) cam_hal: cam init ok
+E (2216) camera: Camera probe failed with error 0x105(ESP_ERR_NOT_FOUND)
+E (2216) gdma: gdma_disconnect(318): no peripheral is connected to the channel
+Camera init failed with error 0x105I (2216) pp: pp rom version: e7ae62f
+I (2226) net80211: net80211 rom version: e7ae62f
+I (2236) wifi:wifi driver task: 3fcc628c, prio:23, stack:6656, core=0
+I (2246) wifi:wifi firmware version: 0947e8b
+I (2246) wifi:wifi certification version: v7.0
+I (2246) wifi:config NVS flash: enabled
+I (2246) wifi:config nano formatting: disabled
+I (2256) wifi:Init data frame dynamic rx buffer num: 32
+I (2256) wifi:Init static rx mgmt buffer num: 5
+I (2256) wifi:Init management short buffer num: 32
+I (2266) wifi:Init static tx buffer num: 16
+I (2266) wifi:Init static tx FG buffer num: 2
+I (2276) wifi:Init static rx buffer size: 1600
+I (2276) wifi:Init static rx buffer num: 10
+I (2276) wifi:Init dynamic rx buffer num: 32
+I (2286) wifi_init: rx ba win: 6
+I (2286) wifi_init: accept mbox: 6
+I (2296) wifi_init: tcpip mbox: 32
+I (2296) wifi_init: udp mbox: 6
+I (2296) wifi_init: tcp mbox: 6
+I (2296) wifi_init: tcp tx win: 5760
+I (2306) wifi_init: tcp rx win: 5760
+I (2306) wifi_init: tcp mss: 1440
+I (2306) wifi_init: WiFi IRAM OP enabled
+I (2316) wifi_init: WiFi RX IRAM OP enabled
+I (2316) phy_init: phy_version 711,97bcf0a2,Aug 25 2025,19:04:10
+I (2356) wifi:mode : sta (44:bd:8d:61:24:08)
+I (2356) wifi:enable tsf
+I (2356) wifi station: wifi_init_sta finished.
+I (2356) esp_3inch5_lcd_port: LCD brightness set to 80%
+I (2366) LVGL: Starting LVGL task
+I (2366) factory: Adding LCD screen
+I (2366) button: IoT Button Version: 4.1.0
+I (4766) wifi station: retry to connect to the AP
+I (4766) wifi station: connect to the AP fail
