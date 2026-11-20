@@ -200,11 +200,30 @@ Scale: raw HX711 → template sensor `(raw − tare) / 441.8879`. The tare is a
 Secrets: `esphome/secrets.yaml` (gitignored; template in
 `secrets.example.yaml`). Wi-Fi still has placeholder credentials.
 
+## Spoolman integration (decision 2026‑11‑19)
+**The device reports to Spoolman, not Home Assistant.** The ESPHome native
+`api:` was removed on purpose. Don't add it back. OTA over Wi-Fi stays.
+- Server: Spoolman 0.27.0 at `http://spoolman.local:7912` (192.168.0.41).
+  The ESP resolves `.local` itself (ESPHome enables LWIP mDNS queries).
+  The URL is the `spoolman_url` secret, and `http://` is added if missing.
+- Tag → spool: the tag UID is stored in the spool extra field **`nfc_uid`**
+  (already existed, display name "fifare_id"). It is matched as upper-case hex,
+  so `51-CE-54-BC` = `51CE54BC`. The key is the `spoolman_uid_field` substitution.
+- Lookup: `GET /api/v1/spool` (≈18–20 KB for 23 spools; buffer 256 KB).
+- Weight: per-card **Send weight** button →
+  `PATCH /api/v1/spool/{id} {"remaining_weight": scale − empty}`, where
+  empty = `spool.spool_weight`, else `filament.spool_weight`. Only on a button
+  press, never automatic (the user's choice). Both readers identify spools,
+  and the user picks the card whose spool is on the scale.
+- Device IP 192.168.0.42 (DHCP). The OTA and AP passwords are in `secrets.yaml`.
+- MIFARE Classic cards log `Authentication failed - Block 0x04` (ESPHome
+  probing for NDEF with default keys). This is harmless: the UID still works.
+
 ## Recommendations / next steps
-1. Fill in `esphome/secrets.yaml` (Wi-Fi, OTA password), then use OTA/Home Assistant.
+1. Link tags in Spoolman (`nfc_uid`) and verify Send weight end to end.
 2. Get **NTAG215** tags and verify OpenSpool tag display end to end
    (write one with the OpenSpool web/phone tool).
-3. Phase 2: port OpenSpool's Bambu link (`conf.d/mqtt_bambu_lan.yaml`,
+3. Optional (not requested; the target is Spoolman): OpenSpool's Bambu link (`conf.d/mqtt_bambu_lan.yaml`,
    `bambu_printer.yaml`, `filament.yaml`, `automation.yaml`). It needs the printer
    IP, serial number and LAN access code. OpenSpool's own S3 pin map (SPI
    11/12/13, CS 4–7) **clashes with this board**: only reuse its logic.
