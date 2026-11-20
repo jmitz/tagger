@@ -1,0 +1,12 @@
+{
+  "tare_counts": -82537.5,
+  "tare_sd": 18.4,
+  "tare_samples": 190,
+  "tare_time": "2026-11-19 22:34:37",
+  "ref_grams": 1188.0,
+  "ref_counts": 442425.3,
+  "ref_sd": 15.3,
+  "counts_per_gram": 441.8879,
+  "resolution_g": 0.042,
+  "ref_time": "2026-11-19 22:36 (settled seconds 4-18 of capture)"
+}

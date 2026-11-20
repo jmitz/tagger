@@ -157,6 +157,15 @@ swapped). Identify pairs by resistance: the two pairs read highest (~1 kΩ),
 cross-pair readings are lower (~750–900 Ω). Calibration (tare + scale factor)
 not done yet; the sign of the reading may need inverting.
 
+**Calibration (2026‑11‑19, after the load cell was screwed down):** tare
+−82 537.5 counts, **441.888 counts/g** (positive sign), reference 1188 g,
+noise-limited resolution about 0.04 g (1 s average), full scale about 19 kg. Verified:
+1188 g reads 1188.1 g. Values in `tools/scale_cal/calibration.json`; the
+procedure is `tools/scale_cal` firmware + `tools/scale_cal.py tare|weigh|check`.
+The zero shifted by about 920 counts (≈2 g) once while the cell wasn't fixed
+down, so the firmware must offer **tare on demand**. Don't hard-code the tare.
+ESPHome: `hx711` + `filters: - calibrate_linear: [-82537.5 -> 0, 442425.3 -> 1188]`.
+
 **System check status: 6 PASS, 2 WARN (RSTPDN not wired), 0 FAIL.**
 
 **Firmware gotcha (arduino-esp32):** calling `pinMode()` on an SPI pin after
