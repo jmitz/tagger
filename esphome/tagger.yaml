@@ -8,6 +8,9 @@
 #          SS GPIO17 (reader 1) / GPIO18 (reader 2)
 #   Scale  HX711 DT GPIO21, SCK GPIO38; calibration from tools/scale_cal
 #
+# Spools are identified in Spoolman by the tag UID stored in a spool extra
+# field (key ${spoolman_uid_field}). "Send weight" on a reader card PATCHes remaining_weight.
+#
 # Build/flash over USB:   venv/bin/esphome run esphome/tagger.yaml --device /dev/ttyACM0
 # Secrets: copy esphome/secrets.example.yaml to esphome/secrets.yaml.
 
@@ -17,6 +20,10 @@ substitutions:
   # Scale calibration (tools/scale_cal/calibration.json, 2026-11-19)
   scale_counts_per_gram: "441.8879"
   scale_default_tare: "-82537.5"
+  # Spoolman base URL, e.g. http://192.168.0.10:7912 ("http://" is added if missing)
+  spoolman_url: !secret spoolman_url
+  # Spoolman spool extra field (Settings > Extra Fields > Spool) holding the tag UID
+  spoolman_uid_field: nfc_uid
 
 esphome:
   name: ${name}
@@ -69,8 +76,7 @@ wifi:
 
 captive_portal:
 
-api:
-  reboot_timeout: 0s
+# No Home Assistant / native API: the device reports to Spoolman instead.
 
 ota:
   - platform: esphome
@@ -153,6 +159,9 @@ pn532_spi:
       then:
         - lambda: tagger::parse_tag(0, x, tag);
         - script.execute: refresh_readers
+        - script.execute:
+            id: spoolman_lookup
+            reader: 0
     on_tag_removed:
       then:
         - lambda: tagger::clear_tag(0);
@@ -166,6 +175,9 @@ pn532_spi:
       then:
         - lambda: tagger::parse_tag(1, x, tag);
         - script.execute: refresh_readers
+        - script.execute:
+            id: spoolman_lookup
+            reader: 1
     on_tag_removed:
       then:
         - lambda: tagger::clear_tag(1);
@@ -225,7 +237,61 @@ button:
               ESP_LOGI("tagger", "Scale tared at %.1f counts", id(scale_tare));
             }
 
+http_request:
+  timeout: 5s
+  verify_ssl: false
+
 script:
+  # Finds the Spoolman spool whose UID extra field matches the reader's tag.
+  - id: spoolman_lookup
+    mode: queued
+    parameters:
+      reader: int
+    then:
+      - http_request.get:
+          url: !lambda return tagger::base_url("${spoolman_url}") + "/api/v1/spool";
+          capture_response: true
+          max_response_buffer_size: 262144
+          on_response:
+            then:
+              - lambda: tagger::on_spool_list(reader, response->status_code, body, "${spoolman_uid_field}");
+              - script.execute: refresh_readers
+          on_error:
+            then:
+              - lambda: tagger::on_http_error(reader, "lookup");
+              - script.execute: refresh_readers
+
+  # Sends the current scale reading to the reader's spool as remaining_weight.
+  - id: spoolman_send_weight
+    mode: queued
+    parameters:
+      reader: int
+    then:
+      - if:
+          condition:
+            lambda: return tagger::can_send_weight(reader, id(scale_weight).state);
+          then:
+            - script.execute: refresh_readers
+            - http_request.send:
+                method: PATCH
+                url: !lambda |-
+                  return tagger::base_url("${spoolman_url}") + "/api/v1/spool/" +
+                         std::to_string(tagger::readers[reader].sm_id);
+                request_headers:
+                  Content-Type: application/json
+                body: !lambda return tagger::weight_body(reader, id(scale_weight).state);
+                capture_response: true
+                on_response:
+                  then:
+                    - lambda: tagger::on_weight_sent(reader, response->status_code, id(scale_weight).state);
+                    - script.execute: refresh_readers
+                on_error:
+                  then:
+                    - lambda: tagger::on_http_error(reader, "save");
+                    - script.execute: refresh_readers
+          else:
+            - script.execute: refresh_readers
+
   - id: refresh_readers
     mode: queued
     then:
@@ -289,20 +355,38 @@ lvgl:
               - label:
                   id: r1_head
                   x: 40
-                  y: 22
+                  y: 20
                   width: 165
-                  long_mode: WRAP
+                  long_mode: DOT
                   text: "No spool"
                   text_font: montserrat_20
               - label:
                   id: r1_detail
                   x: 40
-                  y: 78
+                  y: 46
                   width: 165
-                  long_mode: WRAP
+                  height: 54
+                  long_mode: DOT
                   text: ""
                   text_font: montserrat_14
                   text_color: 0xB8C2CA
+              - button:
+                  id: r1_send
+                  x: 40
+                  y: 106
+                  width: 165
+                  height: 40
+                  bg_color: 0x2E7D4F
+                  radius: 8
+                  widgets:
+                    - label:
+                        align: CENTER
+                        text: Send weight
+                        text_font: montserrat_16
+                  on_click:
+                    - script.execute:
+                        id: spoolman_send_weight
+                        reader: 0
         # ---- reader 2 (right)
         - obj:
             styles: card
@@ -330,20 +414,38 @@ lvgl:
               - label:
                   id: r2_head
                   x: 40
-                  y: 22
+                  y: 20
                   width: 165
-                  long_mode: WRAP
+                  long_mode: DOT
                   text: "No spool"
                   text_font: montserrat_20
               - label:
                   id: r2_detail
                   x: 40
-                  y: 78
+                  y: 46
                   width: 165
-                  long_mode: WRAP
+                  height: 54
+                  long_mode: DOT
                   text: ""
                   text_font: montserrat_14
                   text_color: 0xB8C2CA
+              - button:
+                  id: r2_send
+                  x: 40
+                  y: 106
+                  width: 165
+                  height: 40
+                  bg_color: 0x2E7D4F
+                  radius: 8
+                  widgets:
+                    - label:
+                        align: CENTER
+                        text: Send weight
+                        text_font: montserrat_16
+                  on_click:
+                    - script.execute:
+                        id: spoolman_send_weight
+                        reader: 1
         # ---- scale (bottom)
         - obj:
             styles: card
