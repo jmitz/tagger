@@ -143,12 +143,21 @@ user corrected them; the peripheral-independent bit-banged test in
 `tools/spi_diag` showed MISO stuck high before that), **and** the firmware bug
 below. After both fixes, `tools/system_check`: both readers answer on the shared bus (SCK 11, MOSI 10,
 MISO 9, SS 17/18), firmware 1.6, 0 poll errors, with RF-field-off after each
-poll. Onboard I²C (all 6 devices) still healthy. HX711 not yet detected (DT and
-SCK both floating — wiring/power at the HX711).
+poll. Onboard I²C (all 6 devices) still healthy. HX711: see below.
 
 Tag reading over SPI verified: MIFARE Classic 1K (UID `A140FEA2`, SAK `0x08`)
 read on both readers, 376 polls each, 0 errors. (Not an OpenSpool tag — NTAG215
 still needed for NDEF tests.)
+
+HX711 verified (2026‑11‑19): DT GPIO21 / SCK GPIO38, idle about −110 000 counts,
+noise ~150–270 counts p‑p, ~±80 000 counts under hand pressure, returns to zero.
+Earlier it read exactly +8 388 607 (full scale) on every gain *and* channel B.
+The cause was the load cell's **wire pairs mixed** (one excitation and one signal wire
+swapped). Identify pairs by resistance: the two pairs read highest (~1 kΩ),
+cross-pair readings are lower (~750–900 Ω). Calibration (tare + scale factor)
+not done yet; the sign of the reading may need inverting.
+
+**System check status: 6 PASS, 2 WARN (RSTPDN not wired), 0 FAIL.**
 
 **Firmware gotcha (arduino-esp32):** calling `pinMode()` on an SPI pin after
 `SPI.begin()` detaches it from the SPI peripheral, and a second `SPI.begin()` is

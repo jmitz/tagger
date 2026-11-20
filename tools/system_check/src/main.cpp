@@ -211,7 +211,8 @@ static void pollReader(Reader &r) {
 // ---------------------------------------------------------------- HX711
 static bool hxReady() { return digitalRead(PIN_HX_DT) == LOW; }
 
-static bool hxRead(int32_t &value, uint32_t timeoutMs = 200) {
+// extraPulses selects the gain of the NEXT conversion: 1 = A/128, 2 = B/32, 3 = A/64.
+static bool hxRead(int32_t &value, uint32_t timeoutMs = 200, int extraPulses = 1) {
   uint32_t t0 = millis();
   while (!hxReady()) { if (millis() - t0 > timeoutMs) return false; delay(1); }
   uint32_t v = 0;
@@ -221,8 +222,10 @@ static bool hxRead(int32_t &value, uint32_t timeoutMs = 200) {
     v = (v << 1) | digitalRead(PIN_HX_DT);
     digitalWrite(PIN_HX_SCK, LOW); delayMicroseconds(1);
   }
-  digitalWrite(PIN_HX_SCK, HIGH); delayMicroseconds(1);  // 25th pulse: channel A, gain 128
-  digitalWrite(PIN_HX_SCK, LOW);
+  for (int i = 0; i < extraPulses; i++) {
+    digitalWrite(PIN_HX_SCK, HIGH); delayMicroseconds(1);
+    digitalWrite(PIN_HX_SCK, LOW); delayMicroseconds(1);
+  }
   interrupts();
   if (v & 0x800000) v |= 0xFF000000;
   value = (int32_t)v;
@@ -260,8 +263,22 @@ static void checkHx711() {
   int32_t avg = (int32_t)(sum / got);
   bool railed = (mx >= 0x7FFFFF || mn <= -0x800000);
   bool allSame = (mn == mx);
-  if (railed)
+  if (railed) {
     report("FAIL", "HX711: %d reads, but saturated (min %ld max %ld): load cell wiring (E+/E-/A+/A-)?", got, (long)mn, (long)mx);
+    // Diagnose: lower gain on A, and channel B (B+/B- normally unconnected).
+    struct { int pulses; const char *label; } modes[] = {{3, "channel A gain 64"}, {2, "channel B gain 32"}};
+    for (auto &m : modes) {
+      int32_t x;
+      hxRead(x, 300, m.pulses);  // this read was converted at the old gain; it selects the new one
+      hxRead(x, 300, m.pulses);  // discard first conversion at the new gain (settling)
+      int32_t lo = INT32_MAX, hi = INT32_MIN; int64_t s = 0; int k = 0;
+      for (int i = 0; i < 5; i++) if (hxRead(x, 300, m.pulses)) { lo = min(lo, x); hi = max(hi, x); s += x; k++; }
+      if (k) Serial.printf("       %s: avg %ld (min %ld max %ld)%s\n", m.label, (long)(s / k), (long)lo, (long)hi,
+                           (hi >= 0x7FFFFF || lo <= -0x800000) ? "  SATURATED" : "");
+    }
+    hxRead(v[0], 300, 1);  // back to channel A gain 128
+    hxRead(v[0], 300, 1);
+  }
   else if (allSame && (mn == 0 || mn == -1))
     report("FAIL", "HX711: %d reads all %ld: data line stuck", got, (long)mn);
   else
