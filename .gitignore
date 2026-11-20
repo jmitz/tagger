@@ -8,3 +8,6 @@ secrets.yaml
 # 16 MB factory flash image: kept locally in firmware-backup/, not versioned.
 # Its checksum (factory_backup_16MB.bin.sha256) and boot log are committed.
 firmware-backup/*.bin
+
+# Local Python tooling (platformio, esptool, pyserial)
+venv/

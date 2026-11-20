@@ -72,8 +72,8 @@ they are free. Avoid GPIO0/45/46 (boot strapping).
 | SPI MISO | GPIO9 | 14 | both PN532 MISO |
 | PN532 #1 SS | GPIO17 | 16 | reader 1 SS |
 | PN532 #2 SS | GPIO18 | 18 | reader 2 SS |
-| PN532 #1 RSTPDN (recommended) | GPIO39 | 9 | reader 1 RSTO |
-| PN532 #2 RSTPDN (recommended) | GPIO40 | 11 | reader 2 RSTO |
+| PN532 #1 RSTPDN (recommended) | GPIO39 | 9 | reader 1 **RSTPDN** pad (side row, labelled on back) |
+| PN532 #2 RSTPDN (recommended) | GPIO40 | 11 | reader 2 **RSTPDN** pad (side row, labelled on back) |
 | HX711 DT | GPIO21 | 5 | HX711 DT |
 | HX711 SCK | GPIO38 | 7 | HX711 SCK |
 | 3V3 | — | 31, 32 | all VCC |
@@ -89,6 +89,9 @@ Rules:
 - **Keep the SD slot empty.** GPIO9/10/11 are the SD card lines.
 - Optional 10 kΩ pull-ups SS→3V3 keep readers deselected during boot.
 - Use the module's 8-pin header (SCK, MISO, MOSI, SS, VCC, GND, IRQ, RSTO).
+- **RSTO on the 8-pin header is NOT the reset input** (verified 2026‑11‑19: holding it
+  low does not reset the reader; it is most likely RSTOUT). The reset input is the
+  **RSTPDN** pad on the 10-hole side row. Never drive a GPIO wired to RSTO.
 
 ## Findings (2026‑11‑05)
 
@@ -134,6 +137,25 @@ UID `058DDEFEFFD200`, SAK `0x20` (ISO 14443‑4, not an NTAG). OpenSpool expects
 **NTAG215/216** (SAK `0x00`) carrying an NDEF `application/json` record with
 `"protocol":"openspool"`.
 
+### SPI — verified (2026‑11‑19)
+Two separate faults had to be fixed: the PN532 mode switches were wrong (the
+user corrected them; the peripheral-independent bit-banged test in
+`tools/spi_diag` showed MISO stuck high before that), **and** the firmware bug
+below. After both fixes, `tools/system_check`: both readers answer on the shared bus (SCK 11, MOSI 10,
+MISO 9, SS 17/18), firmware 1.6, 0 poll errors, with RF-field-off after each
+poll. Onboard I²C (all 6 devices) still healthy. HX711 not yet detected (DT and
+SCK both floating — wiring/power at the HX711).
+
+Tag reading over SPI verified: MIFARE Classic 1K (UID `A140FEA2`, SAK `0x08`)
+read on both readers, 376 polls each, 0 errors. (Not an OpenSpool tag — NTAG215
+still needed for NDEF tests.)
+
+**Firmware gotcha (arduino-esp32):** calling `pinMode()` on an SPI pin after
+`SPI.begin()` detaches it from the SPI peripheral, and a second `SPI.begin()` is
+a no-op. The symptom is the peripheral reading 0x00 for every byte, which looks
+exactly like "reader not answering". Measure pin levels *before* `SPI.begin()`.
+`system_check` now self-tests this (idle read must be 0xFF).
+
 ## Recommendations / next steps
 1. Rewire both PN532s to SPI per the table above, and set the switches to SPI.
 2. Wire RSTPDN to GPIO39/40 so firmware can hard-reset a hung reader.
@@ -152,13 +174,20 @@ UID `058DDEFEFFD200`, SAK `0x20` (ISO 14443‑4, not an NTAG). OpenSpool expects
    and must not be used as-is.
 
 ## Tooling
-- No `pio`/`esphome` on PATH. A venv with `platformio`, `esptool`, `pyserial`
-  was used. Recreate with
+- No `pio`/`esphome` on PATH. Use the project venv (`venv/`, gitignored) with
+  `platformio`, `esptool`, `pyserial`. Recreate with
   `python3 -m venv venv && venv/bin/pip install platformio esptool pyserial`.
 - `~/.platformio` already holds the espressif32 platform and toolchains.
 - `tools/pn532_hsu_probe/`: HSU/I²C/line diagnostics (historical).
 - `tools/pn532_i2c_test/`: dual-reader I²C test with bus recovery,
-  RF-field-off and stats. **This is what's currently flashed on the board.**
+  RF-field-off and stats (historical).
+- `tools/system_check/`: **current** PASS/FAIL checklist for the SPI build:
+  onboard I²C, SPI MISO self-test, both PN532s, RSTPDN wiring, HX711, then a
+  soak loop with tag events and stats. **This is what's flashed on the board.**
+- `tools/spi_diag/`: low-level wiring diagnostics (pin levels, connectivity
+  matrix, bit-banged PN532 SPI, SPI mode sweep, HX711 swap detection).
+- `tools/serial_capture.py SECONDS [PORT] [--noreset]`: resets the board and
+  streams serial output (run with `venv/bin/python`).
 - Restore factory firmware: `esptool --port /dev/ttyACM0 write-flash 0
   firmware-backup/factory_backup_16MB.bin` (image is local only, not in git;
   verify with `sha256sum -c firmware-backup/factory_backup_16MB.bin.sha256`).
