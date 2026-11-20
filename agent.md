@@ -220,6 +220,9 @@ Secrets: `esphome/secrets.yaml` (gitignored; template in
   probing for NDEF with default keys). This is harmless: the UID still works.
 
 ## Recommendations / next steps
+**Active work is tracked in [TODO.md](TODO.md)**: next is two-tag spool capture
+with a single Send weight button. The list below is the older backlog.
+
 1. Link tags in Spoolman (`nfc_uid`) and verify Send weight end to end.
 2. Get **NTAG215** tags and verify OpenSpool tag display end to end
    (write one with the OpenSpool web/phone tool).

@@ -50,6 +50,7 @@ The header pin numbers follow the numbering in
 
 ```
 agent.md              Findings, decisions and next steps (for agents and maintainers)
+TODO.md               Active to-do list
 esphome/              Device firmware: tagger.yaml, tagger_tags.h, secrets template
 documents/            Board pinout image and PN532 module photos
 firmware-backup/      Factory flash checksum and boot log (the 16 MB image is local only)
@@ -101,6 +102,6 @@ esptool --port /dev/ttyACM0 write-flash 0 firmware-backup/factory_backup_16MB.bi
 
 1. ~~Rewire the readers to SPI and soak-test both readers~~ (done)
 2. ~~ESPHome firmware with touchscreen UI for tag status and spool weight~~ (done)
-3. Verify OpenSpool tags end to end with NTAG215s.
-4. Bambu printer link (port OpenSpool's MQTT/AMS logic).
+3. Two-tag spool capture with one Send weight button (see [TODO.md](TODO.md)).
+4. Verify OpenSpool tags end to end with NTAG215s.
 5. Write tags from the touchscreen.
