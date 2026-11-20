@@ -219,9 +219,35 @@ Secrets: `esphome/secrets.yaml` (gitignored; template in
 - MIFARE Classic cards log `Authentication failed - Block 0x04` (ESPHome
   probing for NDEF with default keys). This is harmless: the UID still works.
 
+## Next feature: two-tag spool capture (requested 2026‑11‑19, not yet built)
+Full spec and checklist: [TODO.md](TODO.md). Summary, so the design intent
+isn't lost:
+
+- **Each spool carries two tags**, read at the same time by reader 1 and
+  reader 2. The pair of UIDs identifies **one** spool. The readers are no longer
+  two independent spools: this replaces the current per-reader model in
+  `tagger_tags.h`.
+- **Sequence:** (1) wait until *both* readers have a tag; one tag alone is
+  "waiting for second tag", not an error. (2) Then capture the weight: wait for
+  a stable reading (proposed ±2 g for 2 s) and freeze it. (3) Then query
+  Spoolman by the UIDs, or update it. (4) The user taps **one** Send weight
+  button. (5) Lifting the spool (both tags gone) resets the screen.
+- **UI:** a single Send weight button (remove the two per-card buttons), and
+  one combined spool card with a per-reader tag indicator. The button stays
+  disabled until both tags are read, the spool is identified, and the weight is stable.
+- **Spoolman writes happen only on button press.** This is still the user's
+  rule from the first Spoolman design.
+- **Open questions. Ask the user before implementing:**
+  1. Two UIDs vs. Spoolman's single `nfc_uid` text field: comma-separated in
+     `nfc_uid`, or a second field (`nfc_uid_2`)? Match on both UIDs or either?
+  2. What "updated" means for an unknown pair: link it to an existing spool
+     picked on the touchscreen, create a new spool, or only show "not linked"?
+  3. UIDs that match two *different* spools: proposed to block and warn.
+  4. Confirm the stability threshold with real spools.
+
 ## Recommendations / next steps
-**Active work is tracked in [TODO.md](TODO.md)**: next is two-tag spool capture
-with a single Send weight button. The list below is the older backlog.
+**Active work is tracked in [TODO.md](TODO.md)**: next is the two-tag spool
+capture above. The list below is the older backlog.
 
 1. Link tags in Spoolman (`nfc_uid`) and verify Send weight end to end.
 2. Get **NTAG215** tags and verify OpenSpool tag display end to end
