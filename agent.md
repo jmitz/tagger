@@ -17,19 +17,17 @@ an interim setup only (see "I²C findings" for why).
 
 | Item | Value |
 |---|---|
-| Board | Waveshare ESP32‑S3‑Touch‑LCD‑3.5 **family** — variant unresolved, see below |
+| Board | Waveshare ESP32‑S3‑Touch‑LCD‑**3.5 (non‑B)**: ST7796 + FT6336 (see below) |
 | SoC | ESP32‑S3 (QFN56) rev v0.2, 240 MHz dual core, Wi‑Fi + BLE 5 |
 | Memory | 16 MB QIO flash, 8 MB octal PSRAM |
 | USB | Native USB‑Serial/JTAG, `/dev/ttyACM0`, VID:PID `303a:1001` |
 | MAC | `44:bd:8d:61:24:08` |
 | Onboard I²C (GPIO8 SDA / GPIO7 SCL) | `0x18` ES8311, `0x20` TCA9554, `0x34` AXP2101, `0x38` FT6336 touch, `0x51` PCF85063, `0x6B` QMI8658, `0x7E` unidentified |
 
-**Variant question (unresolved).** The user identifies the board as the
-**3.5B**. Evidence says it behaves like the **non‑B 3.5**: the factory firmware
-drives an **ST7796** SPI LCD + **FT6336** touch, and touch answers at `0x38`.
-The 3.5B instead uses an **AXS15231B** QSPI LCD (GPIO1–5, CS GPIO12, BL GPIO6).
-This only affects the display config; the expansion header GPIOs are identical
-on both variants. Confirm before writing the display section.
+**Variant (resolved 2026‑11‑19).** The user called it a "3.5B", but it is the
+**non‑B 3.5**: the ESPHome firmware drives it as an **ST7796** SPI LCD with
+**FT6336** touch (`0x38`), and it works. (The 3.5B has an AXS15231B QSPI LCD.)
+The expansion header is the same on both, and the user's pinout image is valid.
 
 Schematics/examples: `github.com/waveshareteam/ESP32-S3-Touch-LCD-3.5` and
 `…/ESP32-S3-Touch-LCD-3.5B`.
@@ -129,8 +127,8 @@ the external field to drop. Symptom: the second-polled reader always times out,
 and the failure follows the poll order, not the module.
 **Fix:** after every poll send `RFConfiguration` item 1 = off
 (`D4 32 01 00`). With this in place: 0 errors.
-In ESPHome, check whether `pn532` already turns the RF field off after each
-`update()`. If it doesn't, add it via an external component or a lambda.
+ESPHome's `pn532` component already does this (`turn_off_rf_()` after every
+poll, verified in 2026.11.0 source), so no custom code is needed there.
 
 ### Tag seen in testing
 UID `058DDEFEFFD200`, SAK `0x20` (ISO 14443‑4, not an NTAG). OpenSpool expects
@@ -154,8 +152,7 @@ noise ~150–270 counts p‑p, ~±80 000 counts under hand pressure, returns to 
 Earlier it read exactly +8 388 607 (full scale) on every gain *and* channel B.
 The cause was the load cell's **wire pairs mixed** (one excitation and one signal wire
 swapped). Identify pairs by resistance: the two pairs read highest (~1 kΩ),
-cross-pair readings are lower (~750–900 Ω). Calibration (tare + scale factor)
-not done yet; the sign of the reading may need inverting.
+cross-pair readings are lower (~750–900 Ω). Calibration: see below.
 
 **Calibration (2026‑11‑19, after the load cell was screwed down):** tare
 −82 537.5 counts, **441.888 counts/g** (positive sign), reference 1188 g,
@@ -174,22 +171,45 @@ a no-op. The symptom is the peripheral reading 0x00 for every byte, which looks
 exactly like "reader not answering". Measure pin levels *before* `SPI.begin()`.
 `system_check` now self-tests this (idle read must be 0xFF).
 
+## ESPHome firmware (`esphome/`, verified on device 2026‑11‑19)
+`esphome/tagger.yaml` + `esphome/tagger_tags.h`. Built with ESPHome 2026.11.0,
+ESP-IDF framework. Verified: display, touch (Tare button), both readers
+(tags shown on the correct card), scale.
+
+Display facts that cost time, so don't re-learn them:
+- ST7796 via `mipi_spi`: SCLK GPIO5, MOSI GPIO1, DC GPIO3, reset on TCA9554
+  EXIO1 (`pca9554` component), backlight LEDC on GPIO6, `color_order: bgr`,
+  `invert_colors: true`, 40 MHz.
+- **LCD CS is hard-wired low (R16)**, so there is no `cs_pin`. ESPHome then
+  defaults to **SPI MODE3**, and the panel stays blank (backlight lit, faint grey).
+  **`spi_mode: MODE0` is required.**
+- **Don't override the model's `mirror_x`.** Setting `transform: mirror_x: false`
+  mirrors the text.
+- The unit is mounted landscape. Rotation must go on **`lvgl: rotation: 270`**:
+  ESPHome rejects `rotation` on the display when LVGL is used, and 90 is
+  upside down for this mounting. Touch follows the LVGL rotation correctly.
+- Power: AXP2101 boots with DCDC=0x0F, LDO=0xFF. The LCD runs from DCDC1
+  (VCC3V3), so the firmware doesn't need to configure the PMU. DC5 is unused.
+- Two SPI hosts: LCD on `spi2`, PN532s on `spi3`.
+
+Tags: `tagger_tags.h` parses OpenSpool NDEF (`application/json`,
+`"protocol":"openspool"`). Cards show "No spool", "Blank / unformatted tag",
+"Not an OpenSpool tag", or brand + type + temps with a colour swatch.
+Scale: raw HX711 → template sensor `(raw − tare) / 441.8879`. The tare is a
+`restore_value` global set by the Tare button (LVGL + HA button).
+Secrets: `esphome/secrets.yaml` (gitignored; template in
+`secrets.example.yaml`). Wi-Fi still has placeholder credentials.
+
 ## Recommendations / next steps
-1. Rewire both PN532s to SPI per the table above, and set the switches to SPI.
-2. Wire RSTPDN to GPIO39/40 so firmware can hard-reset a hung reader.
-3. Reconnect the HX711 on GPIO21/38.
-4. Write a quick SPI dual-reader test (port `tools/pn532_i2c_test`: same frames.
-   PN532 SPI is **LSB-first, mode 0, ≤5 MHz**, with the status/data-write/
-   data-read prefix bytes 0x02/0x01/0x03). Soak-test it before ESPHome.
-5. Build the ESPHome config from OpenSpool's `firmware/` packages, keeping:
-   - `spi:` clk GPIO11, mosi GPIO10, miso GPIO9; `pn532_spi` cs GPIO17 / GPIO18
-   - RF-field-off after every poll
-   - `hx711` dout GPIO21, clk GPIO38
-   - onboard `i2c:` GPIO8/7 for touch/PMU/IO expander. The display driver
-     depends on the variant question above.
-   - logger on USB‑Serial/JTAG (GPIO43/44 stay free)
-   OpenSpool's own S3 pin map (SPI 11/12/13, CS 4–7) **clashes with this board**
-   and must not be used as-is.
+1. Fill in `esphome/secrets.yaml` (Wi-Fi, OTA password), then use OTA/Home Assistant.
+2. Get **NTAG215** tags and verify OpenSpool tag display end to end
+   (write one with the OpenSpool web/phone tool).
+3. Phase 2: port OpenSpool's Bambu link (`conf.d/mqtt_bambu_lan.yaml`,
+   `bambu_printer.yaml`, `filament.yaml`, `automation.yaml`). It needs the printer
+   IP, serial number and LAN access code. OpenSpool's own S3 pin map (SPI
+   11/12/13, CS 4–7) **clashes with this board**: only reuse its logic.
+4. Optional: wire RSTPDN (side-row pad) to GPIO39/40 and add a hard reset.
+5. Optional: tag writing from the touchscreen (pick material/colour → write NDEF).
 
 ## Tooling
 - No `pio`/`esphome` on PATH. Use the project venv (`venv/`, gitignored) with
@@ -199,9 +219,11 @@ exactly like "reader not answering". Measure pin levels *before* `SPI.begin()`.
 - `tools/pn532_hsu_probe/`: HSU/I²C/line diagnostics (historical).
 - `tools/pn532_i2c_test/`: dual-reader I²C test with bus recovery,
   RF-field-off and stats (historical).
-- `tools/system_check/`: **current** PASS/FAIL checklist for the SPI build:
+- `tools/system_check/`: PASS/FAIL checklist for the SPI build:
   onboard I²C, SPI MISO self-test, both PN532s, RSTPDN wiring, HX711, then a
-  soak loop with tag events and stats. **This is what's flashed on the board.**
+  soak loop with tag events and stats. Flashing it replaces the ESPHome firmware.
+- **The board now runs the ESPHome firmware** (`esphome/tagger.yaml`). Build and
+  flash with `venv/bin/esphome run esphome/tagger.yaml --device /dev/ttyACM0`.
 - `tools/spi_diag/`: low-level wiring diagnostics (pin levels, connectivity
   matrix, bit-banged PN532 SPI, SPI mode sweep, HX711 swap detection).
 - `tools/serial_capture.py SECONDS [PORT] [--noreset]`: resets the board and

@@ -1,0 +1,381 @@
+# Tagger: OpenSpool-compatible spool tagger on the Waveshare ESP32-S3 3.5" touch LCD.
+#
+# Hardware and pin decisions are documented in ../agent.md. Summary:
+#   LCD    ST7796 320x480, SPI: SCLK GPIO5, MOSI GPIO1, DC GPIO3, no CS,
+#          reset on TCA9554 EXIO1, backlight GPIO6
+#   Touch  FT6336 @0x38 on the onboard I2C bus (SDA GPIO8, SCL GPIO7)
+#   NFC    2x PN532 on a second SPI bus: SCK GPIO11, MOSI GPIO10, MISO GPIO9,
+#          SS GPIO17 (reader 1) / GPIO18 (reader 2)
+#   Scale  HX711 DT GPIO21, SCK GPIO38; calibration from tools/scale_cal
+#
+# Build/flash over USB:   venv/bin/esphome run esphome/tagger.yaml --device /dev/ttyACM0
+# Secrets: copy esphome/secrets.example.yaml to esphome/secrets.yaml.
+
+substitutions:
+  name: tagger
+  friendly_name: Tagger
+  # Scale calibration (tools/scale_cal/calibration.json, 2026-11-19)
+  scale_counts_per_gram: "441.8879"
+  scale_default_tare: "-82537.5"
+
+esphome:
+  name: ${name}
+  friendly_name: ${friendly_name}
+  min_version: 2026.11.0
+  includes:
+    - tagger_tags.h
+  on_boot:
+    priority: 600
+    then:
+      - lambda: |-
+          // Log the AXP2101 power-rail enables so a dark screen can be traced to
+          // power vs. display init. 0x80 = DCDC enables, 0x90 = LDO enables.
+          uint8_t dcdc = 0, ldo = 0;
+          const uint8_t r_dcdc = 0x80, r_ldo = 0x90;
+          id(bus_board).write_readv(0x34, &r_dcdc, 1, &dcdc, 1);
+          id(bus_board).write_readv(0x34, &r_ldo, 1, &ldo, 1);
+          ESP_LOGI("tagger", "AXP2101 DCDC enable=0x%02X LDO enable=0x%02X", dcdc, ldo);
+
+esp32:
+  board: esp32-s3-devkitc-1
+  variant: esp32s3
+  flash_size: 16MB
+  cpu_frequency: 240MHz
+  framework:
+    type: esp-idf
+
+json:   # used by tagger_tags.h to parse OpenSpool NDEF payloads
+
+psram:
+  mode: octal
+  speed: 80MHz
+
+logger:
+  hardware_uart: USB_SERIAL_JTAG
+  level: DEBUG
+  logs:
+    pn532: INFO
+    sensor: INFO
+    hx711: INFO
+    lvgl: INFO
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  reboot_timeout: 0s   # never reboot just because Wi-Fi is missing
+  ap:
+    ssid: "Tagger Setup"
+    password: !secret ap_password
+
+captive_portal:
+
+api:
+  reboot_timeout: 0s
+
+ota:
+  - platform: esphome
+    password: !secret ota_password
+
+# ------------------------------------------------------------------ buses
+i2c:
+  - id: bus_board
+    sda: GPIO8
+    scl: GPIO7
+    frequency: 400kHz
+    scan: true
+
+pca9554:
+  - id: exio            # TCA9554 I/O expander (EXIO1 = LCD reset)
+    i2c_id: bus_board
+    address: 0x20
+
+spi:
+  - id: spi_lcd
+    clk_pin: GPIO5
+    mosi_pin: GPIO1
+    interface: spi2
+  - id: spi_rfid
+    clk_pin: GPIO11
+    mosi_pin: GPIO10
+    miso_pin: GPIO9
+    interface: spi3
+
+# ------------------------------------------------------------------ display
+output:
+  - platform: ledc
+    id: backlight_pwm
+    pin: GPIO6
+    frequency: 5000Hz
+
+light:
+  - platform: monochromatic
+    id: backlight
+    name: Backlight
+    output: backlight_pwm
+    restore_mode: ALWAYS_ON
+    default_transition_length: 0s
+
+display:
+  - platform: mipi_spi
+    id: lcd
+    model: ST7796
+    spi_id: spi_lcd
+    dc_pin: GPIO3
+    reset_pin:
+      pca9554: exio
+      number: 1
+    data_rate: 40MHz
+    # CS is hard-wired low (R16), so the panel never sees a CS edge; it needs
+    # MODE0 like the Waveshare driver. ESPHome defaults to MODE3 without a CS pin.
+    spi_mode: MODE0
+    color_order: bgr
+    invert_colors: true
+    # Keep the model's default mirror_x: overriding it mirrors the image.
+    # Landscape rotation is set on lvgl (ESPHome requires it there).
+    auto_clear_enabled: false
+    update_interval: never
+
+touchscreen:
+  - platform: ft63x6
+    id: touch
+    i2c_id: bus_board
+    address: 0x38
+    display: lcd
+
+# ------------------------------------------------------------------ NFC
+pn532_spi:
+  - id: reader_1
+    spi_id: spi_rfid
+    cs_pin: GPIO17
+    data_rate: 1MHz
+    update_interval: 500ms
+    on_tag:
+      then:
+        - lambda: tagger::parse_tag(0, x, tag);
+        - script.execute: refresh_readers
+    on_tag_removed:
+      then:
+        - lambda: tagger::clear_tag(0);
+        - script.execute: refresh_readers
+  - id: reader_2
+    spi_id: spi_rfid
+    cs_pin: GPIO18
+    data_rate: 1MHz
+    update_interval: 500ms
+    on_tag:
+      then:
+        - lambda: tagger::parse_tag(1, x, tag);
+        - script.execute: refresh_readers
+    on_tag_removed:
+      then:
+        - lambda: tagger::clear_tag(1);
+        - script.execute: refresh_readers
+
+# ------------------------------------------------------------------ scale
+globals:
+  - id: scale_tare
+    type: float
+    restore_value: true
+    initial_value: ${scale_default_tare}
+
+sensor:
+  - platform: hx711
+    id: scale_raw
+    internal: true
+    dout_pin: GPIO21
+    clk_pin: GPIO38
+    gain: 128
+    update_interval: 250ms
+    filters:
+      - median:
+          window_size: 5
+          send_every: 1
+  - platform: template
+    id: scale_weight
+    name: Spool weight
+    unit_of_measurement: g
+    device_class: weight
+    state_class: measurement
+    accuracy_decimals: 0
+    update_interval: 500ms
+    lambda: |-
+      if (isnan(id(scale_raw).state)) return {};
+      return (id(scale_raw).state - id(scale_tare)) / ${scale_counts_per_gram};
+    filters:
+      - sliding_window_moving_average:
+          window_size: 4
+          send_every: 1
+    on_value:
+      then:
+        - lvgl.label.update:
+            id: weight_label
+            text:
+              format: "%.0f g"
+              args: [x]
+
+button:
+  - platform: template
+    id: tare_button
+    name: Tare scale
+    on_press:
+      then:
+        - lambda: |-
+            if (!isnan(id(scale_raw).state)) {
+              id(scale_tare) = id(scale_raw).state;
+              ESP_LOGI("tagger", "Scale tared at %.1f counts", id(scale_tare));
+            }
+
+script:
+  - id: refresh_readers
+    mode: queued
+    then:
+      - lambda: |-
+          tagger::render(0, id(r1_head), id(r1_detail), id(r1_swatch));
+          tagger::render(1, id(r2_head), id(r2_detail), id(r2_swatch));
+
+# ------------------------------------------------------------------ UI
+# Landscape 480x320: two reader cards side by side, scale across the bottom.
+lvgl:
+  displays: [lcd]
+  touchscreens: [touch]
+  # Native panel is 320x480 portrait; the unit is mounted landscape.
+  # 90 was upside down for this mounting.
+  rotation: 270
+  buffer_size: 25%
+  bg_color: 0x101418
+  default_font: montserrat_16
+  on_boot:   # LVGL widgets exist now: draw the initial "No spool" state
+    - script.execute: refresh_readers
+  style_definitions:
+    - id: card
+      bg_color: 0x1E252C
+      border_width: 0
+      radius: 10
+      pad_all: 10
+      text_color: 0xE8ECEF
+  pages:
+    - id: main_page
+      widgets:
+        - label:
+            align: TOP_MID
+            y: 6
+            text: Tagger
+            text_font: montserrat_20
+            text_color: 0x8FA3B3
+        # ---- reader 1 (left)
+        - obj:
+            styles: card
+            x: 10
+            y: 34
+            width: 225
+            height: 166
+            scrollable: false
+            widgets:
+              - obj:
+                  id: r1_swatch
+                  x: 0
+                  y: 0
+                  width: 28
+                  height: 146
+                  radius: 6
+                  border_width: 0
+                  bg_color: 0x303030
+              - label:
+                  x: 40
+                  y: 0
+                  text: Reader 1
+                  text_color: 0x8FA3B3
+                  text_font: montserrat_14
+              - label:
+                  id: r1_head
+                  x: 40
+                  y: 22
+                  width: 165
+                  long_mode: WRAP
+                  text: "No spool"
+                  text_font: montserrat_20
+              - label:
+                  id: r1_detail
+                  x: 40
+                  y: 78
+                  width: 165
+                  long_mode: WRAP
+                  text: ""
+                  text_font: montserrat_14
+                  text_color: 0xB8C2CA
+        # ---- reader 2 (right)
+        - obj:
+            styles: card
+            x: 245
+            y: 34
+            width: 225
+            height: 166
+            scrollable: false
+            widgets:
+              - obj:
+                  id: r2_swatch
+                  x: 0
+                  y: 0
+                  width: 28
+                  height: 146
+                  radius: 6
+                  border_width: 0
+                  bg_color: 0x303030
+              - label:
+                  x: 40
+                  y: 0
+                  text: Reader 2
+                  text_color: 0x8FA3B3
+                  text_font: montserrat_14
+              - label:
+                  id: r2_head
+                  x: 40
+                  y: 22
+                  width: 165
+                  long_mode: WRAP
+                  text: "No spool"
+                  text_font: montserrat_20
+              - label:
+                  id: r2_detail
+                  x: 40
+                  y: 78
+                  width: 165
+                  long_mode: WRAP
+                  text: ""
+                  text_font: montserrat_14
+                  text_color: 0xB8C2CA
+        # ---- scale (bottom)
+        - obj:
+            styles: card
+            x: 10
+            y: 210
+            width: 460
+            height: 100
+            scrollable: false
+            widgets:
+              - label:
+                  x: 0
+                  y: 0
+                  text: Scale
+                  text_color: 0x8FA3B3
+                  text_font: montserrat_14
+              - label:
+                  id: weight_label
+                  x: 0
+                  y: 24
+                  text: "-- g"
+                  text_font: montserrat_48
+              - button:
+                  id: tare_ui_button
+                  align: RIGHT_MID
+                  width: 140
+                  height: 56
+                  bg_color: 0x2F6FDE
+                  radius: 8
+                  widgets:
+                    - label:
+                        align: CENTER
+                        text: Tare
+                        text_font: montserrat_20
+                  on_click:
+                    - button.press: tare_button

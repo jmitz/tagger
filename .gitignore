@@ -11,3 +11,4 @@ firmware-backup/*.bin
 
 # Local Python tooling (platformio, esptool, pyserial)
 venv/
+__pycache__/

@@ -6,17 +6,18 @@ Waveshare ESP32‑S3 3.5" touch LCD board.
 
 - Two **PN532** NFC readers read and write OpenSpool NFC tags (NTAG215/216).
 - An **HX711** load cell weighs the spool.
-- The 320×480 touchscreen shows status.
+- The 3.5" touchscreen (480×320, mounted landscape) shows reader and scale status.
 
-> **Status:** hardware bring-up. Both readers have been verified reading tags
-> (over I²C), and the build is now moving to **SPI** wiring. The ESPHome
-> firmware hasn't been written yet. Detailed findings are in [agent.md](agent.md).
+> **Status:** the ESPHome firmware runs on the device. The touchscreen shows both
+> readers and the scale weight, and has a Tare button. OpenSpool tags are decoded
+> and displayed. The Bambu printer link is not done yet. Detailed findings are
+> in [agent.md](agent.md).
 
 ## Hardware
 
 | Part | Notes |
 |---|---|
-| Waveshare ESP32‑S3‑Touch‑LCD‑3.5 (B) | 16 MB flash, 8 MB PSRAM, USB‑C |
+| Waveshare ESP32‑S3‑Touch‑LCD‑3.5 (non‑B: ST7796 + FT6336) | 16 MB flash, 8 MB PSRAM, USB‑C |
 | 2 × Elechouse PN532 NFC Module V3 | Set to **SPI** mode |
 | HX711 + load cell | |
 
@@ -49,12 +50,31 @@ The header pin numbers follow the numbering in
 
 ```
 agent.md              Findings, decisions and next steps (for agents and maintainers)
+esphome/              Device firmware: tagger.yaml, tagger_tags.h, secrets template
 documents/            Board pinout image and PN532 module photos
 firmware-backup/      Factory flash checksum and boot log (the 16 MB image is local only)
 tools/
   pn532_hsu_probe/    PlatformIO diagnostics for HSU/UART, I²C and line levels
   pn532_i2c_test/     PlatformIO dual-reader I²C test and soak test
+  system_check/       PlatformIO pass/fail hardware check (SPI readers, HX711, I²C)
+  spi_diag/           Low-level SPI/HX711 wiring diagnostics
+  scale_cal/          HX711 calibration stream (with scale_cal.py)
 ```
+
+## Building and flashing the firmware
+
+The device firmware is [ESPHome](https://esphome.io/), in `esphome/`:
+
+```bash
+python3 -m venv venv && venv/bin/pip install esphome platformio esptool pyserial
+cp esphome/secrets.example.yaml esphome/secrets.yaml   # then fill in Wi-Fi and OTA password
+venv/bin/esphome run esphome/tagger.yaml --device /dev/ttyACM0
+```
+
+On screen: two reader cards (left = reader 1, right = reader 2) and the scale
+with a **Tare** button. Tare whenever the empty-scale reading drifts.
+For an OpenSpool tag, a card shows the brand, material, colour and print
+temperatures. Other tags show their UID.
 
 ## Building and flashing the test tools
 
@@ -79,7 +99,8 @@ esptool --port /dev/ttyACM0 write-flash 0 firmware-backup/factory_backup_16MB.bi
 
 ## Roadmap
 
-1. Rewire the readers to SPI and soak-test both readers.
-2. Write an ESPHome configuration based on OpenSpool's packages, adapted to
-   this board's pins and display.
-3. Add a touchscreen UI for tag status, spool weight and writing tags.
+1. ~~Rewire the readers to SPI and soak-test both readers~~ (done)
+2. ~~ESPHome firmware with touchscreen UI for tag status and spool weight~~ (done)
+3. Verify OpenSpool tags end to end with NTAG215s.
+4. Bambu printer link (port OpenSpool's MQTT/AMS logic).
+5. Write tags from the touchscreen.
