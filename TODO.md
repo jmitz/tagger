@@ -1,6 +1,52 @@
 # TODO
 
-## Next: two-tag spool capture with a single Send weight
+## Goal: touch-first Spoolman client (requested 2026‑11‑20)
+The Tagger UI should implement **all capabilities of the Spoolman web UI**
+(`http://spoolman.local:7912`, Spoolman 0.27), touch-first with minimal text
+entry, including **adding new spools** and **updating existing ones**.
+
+Design rules:
+- Pick from lists wherever Spoolman provides values (`/location`, `/material`,
+  `/lot-number`, `/article-number`, extra-field values, vendors, filaments,
+  `/external/filament` catalog). Numbers via keypad or ± steppers. Colour via
+  palette. On-screen keyboard only for names, comments and search.
+- UI is C++ (`esphome/components/tagger_app`), LVGL built in code; HTTP runs
+  on a background task so the screen never blocks.
+- Not feasible on the device: label/QR printing, CSV export (backup can be
+  triggered).
+
+Phases (test on the device and commit each):
+1. **[done, verified on device 2026‑11‑25]** Framework (component, async HTTP,
+   Spoolman model) + Scan screen: native tag linking, two-tag **latching**
+   capture, stable weight, single Send weight (`PUT /spool/{id}/measure`),
+   Link tag, **Link to spool… picker** (pulled forward from phase 2), Clear, Tare.
+2. **Next.** Spools: list with filter chips (material, vendor, location, archived), detail,
+   edit, use filament, measure, archive, delete (confirm), tag link/unlink.
+3. New spool wizard: filament from own list or external catalog → weights
+   (filament defaults / scale) → location → link the tags on the readers.
+4. Filaments and vendors: list, detail, add, edit, delete (colour palette, temperature steppers).
+5. Locations (rename), global search, settings/info/health, extra fields, backup.
+
+Decisions taken for phase 1 (the user said "continue with phase 1" without
+answering; these were the stated defaults, so revisit if the user objects):
+- Use **Spoolman's built-in tags** (`spool.tags`, `POST /spool/{id}/tag`,
+  `POST /tag/scan`) instead of the `nfc_uid` extra field (it held no data).
+- **Either tag identifies the spool.** Both should be linked, and the Scan screen
+  offers "Link tag" for the one that isn't.
+- Deletion from the device: not yet decided (relevant from phase 2). Ask.
+
+Phase 1 behaviour as built (user-directed changes during testing):
+- **Tags latch** in arrival order from either reader: the first UID is held
+  until a second, *different* UID arrives, then both are held. Tags leaving a
+  reader's field are ignored. (The first version cleared on removal, and the
+  readers flicker or both see one tag.)
+- **Reset:** the spool is lifted (weight above 30 g while latched, then below
+  30 g for 1.5 s), or the **Clear** button.
+- Both tags unknown → **Link to spool…** opens a scrollable spool list
+  (non-archived, sorted by vendor/material), and tap + confirm links both tags.
+  One tag known → **Link tag** links the other to the same spool.
+
+## Two-tag spool capture with a single Send weight (done in phase 1)
 
 **Goal (requested 2026‑11‑19).** Each spool carries **two tags**, read at the
 same time by reader 1 and reader 2. The device captures both tags, then the
@@ -31,13 +77,10 @@ Send weight button instead of one per reader.
 - Disable Send weight until: both tags read, spool identified, weight stable.
 
 ### Open questions (settle before implementing)
-1. **How to store two UIDs in Spoolman.** Spoolman 0.27 has one text extra
-   field, `nfc_uid`. Options: both UIDs comma-separated in `nfc_uid`, or add
-   a second field (e.g. `nfc_uid_2`). Should a match need *both* UIDs,
-   or is either one enough?
-2. **"Updated" when the spool isn't found.** Link the tag pair to an existing
-   spool (chosen on the touchscreen from a list?), create a new spool, or
-   only show "not linked"?
+1. ~~How to store two UIDs.~~ Resolved: Spoolman 0.27 supports several native
+   tags per spool, and either tag identifies the spool.
+2. ~~"Updated" when the spool isn't found.~~ Link to an existing spool is done
+   (picker); creating a new spool is phase 3.
 3. **Mismatched tags.** If the two UIDs belong to *different* Spoolman spools,
    block Send weight and show a warning (proposed).
 4. **Stability threshold.** ±2 g / 2 s is a proposal. Confirm against real

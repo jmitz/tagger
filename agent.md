@@ -206,10 +206,8 @@ Secrets: `esphome/secrets.yaml` (gitignored; template in
 - Server: Spoolman 0.27.0 at `http://spoolman.local:7912` (192.168.0.41).
   The ESP resolves `.local` itself (ESPHome enables LWIP mDNS queries).
   The URL is the `spoolman_url` secret, and `http://` is added if missing.
-- Tag → spool: the tag UID is stored in the spool extra field **`nfc_uid`**
-  (already existed, display name "fifare_id"). It is matched as upper-case hex,
-  so `51-CE-54-BC` = `51CE54BC`. The key is the `spoolman_uid_field` substitution.
-- Lookup: `GET /api/v1/spool` (≈18–20 KB for 23 spools; buffer 256 KB).
+- Tag → spool: **superseded 2026‑11‑20.** Spoolman's native tags replace the
+  `nfc_uid` extra field (the field still exists in Spoolman but is unused).
 - Weight: per-card **Send weight** button →
   `PATCH /api/v1/spool/{id} {"remaining_weight": scale − empty}`, where
   empty = `spool.spool_weight`, else `filament.spool_weight`. Only on a button
@@ -219,7 +217,43 @@ Secrets: `esphome/secrets.yaml` (gitignored; template in
 - MIFARE Classic cards log `Authentication failed - Block 0x04` (ESPHome
   probing for NDEF with default keys). This is harmless: the UID still works.
 
-## Next feature: two-tag spool capture (requested 2026‑11‑19, not yet built)
+## Touch Spoolman client (requested 2026‑11‑20; phase 1 done and verified 2026‑11‑25)
+Goal: implement all capabilities of the Spoolman web UI on the device,
+touch-first, minimal text entry, including add and update spool. The phase plan
+and design rules are in [TODO.md](TODO.md).
+
+Architecture (phase 1):
+- `esphome/components/tagger_app/` is a local ESPHome component
+  (`external_components: source: local`). `TaggerApp` (Component) owns the
+  state and builds LVGL screens in C++ from `lvgl: on_boot`.
+  `HttpWorker` runs `esp_http_client` on its own FreeRTOS task, and
+  callbacks run on the main/LVGL thread via `poll()` in `loop()`.
+  **Never touch LVGL from the HTTP task.**
+- ESPHome compiles only the LVGL fonts and widgets that appear in YAML. The
+  `_uses` page (`skip: true`) and `style_definitions` exist only to enable
+  what the C++ code uses. Add new widget types and fonts there.
+- The YAML still owns the hardware: `pn532_spi` `on_tag` → `id(app).on_tag()`,
+  `scale_weight` → `id(app).on_weight()`, Tare → template button
+  (`set_tare_action`). `tagger_tags.h` and the `nfc_uid` lookup were removed.
+- Spoolman 0.27 features used: `POST /tag/scan` (UID → `matched_spool_id`,
+  `reader_id` = `tagger-r1`/`tagger-r2`), `GET /spool/{id}`,
+  `PUT /spool/{id}/measure {"weight": gross}` (Spoolman subtracts the empty
+  spool weight), `POST /spool/{id}/tag {"uid"}` (409 = the tag belongs to
+  another spool), `GET /health` every 30 s.
+- **Tag latching (user requirement, 2026‑11‑25):** tags are held in arrival
+  order from either reader. The first is held until a second, *different* UID
+  arrives. `on_tag_removed` is ignored. Reset happens only on spool lift (weight
+  above `reset_threshold` 30 g while latched, then below it for 1.5 s) or the
+  Clear button. Don't go back to clearing on tag removal: the readers flicker
+  and can both see the same tag.
+- **Link to spool… picker** (both tags unknown): `GET /spool` → scrollable list
+  on a second LVGL screen (`lv_screen_load`), confirm bar, then
+  `POST /spool/{id}/tag` for each unlinked UID in turn.
+- Verified end to end with spool tags `11EF54BC` + `A1C154BC` (MIFARE Classic):
+  latched, linked via the picker, weight captured (337.1 g), and Send weight
+  updated Spoolman correctly.
+
+## Two-tag spool capture (requested 2026‑11‑19; now part of phase 1)
 Full spec and checklist: [TODO.md](TODO.md). Summary, so the design intent
 isn't lost:
 
@@ -238,8 +272,7 @@ isn't lost:
 - **Spoolman writes happen only on button press.** This is still the user's
   rule from the first Spoolman design.
 - **Open questions. Ask the user before implementing:**
-  1. Two UIDs vs. Spoolman's single `nfc_uid` text field: comma-separated in
-     `nfc_uid`, or a second field (`nfc_uid_2`)? Match on both UIDs or either?
+  1. ~~Two UIDs in Spoolman~~ → resolved: native multi-tag support, and either tag matches.
   2. What "updated" means for an unknown pair: link it to an existing spool
      picked on the touchscreen, create a new spool, or only show "not linked"?
   3. UIDs that match two *different* spools: proposed to block and warn.
