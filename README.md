@@ -105,3 +105,15 @@ esptool --port /dev/ttyACM0 write-flash 0 firmware-backup/factory_backup_16MB.bi
 3. Two-tag spool capture with one Send weight button (see [TODO.md](TODO.md)).
 4. Verify OpenSpool tags end to end with NTAG215s.
 5. Write tags from the touchscreen.
+
+## Project Photos
+
+
+Tagger Scale with Spool
+
+<img src="documents/20261125_165016.jpg" alt="Full image of tagger scale with spool." width="50%" />
+
+Tagger Scale Screen
+
+<img src="documents/20261125_165022.jpg" alt="Tagger scale screen." width="50%" />
+
