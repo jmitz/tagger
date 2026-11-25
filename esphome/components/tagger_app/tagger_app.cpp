@@ -145,6 +145,22 @@ void TaggerApp::on_weight(float grams) {
     this->dirty_ = true;
 }
 
+void TaggerApp::set_battery(bool present, int percent, int millivolts, bool usb, bool charging) {
+  bool changed = !this->bat_known_ || present != this->bat_present_ || percent != this->bat_pct_ ||
+                 usb != this->bat_usb_ || charging != this->bat_charging_;
+  this->bat_known_ = true;
+  this->bat_present_ = present;
+  this->bat_pct_ = percent;
+  this->bat_mv_ = millivolts;
+  this->bat_usb_ = usb;
+  this->bat_charging_ = charging;
+  if (changed) {
+    ESP_LOGI(TAG, "Battery: %s %d%% %d mV, USB %s, %s", present ? "present" : "absent", percent, millivolts,
+             usb ? "yes" : "no", charging ? "charging" : "not charging");
+    this->dirty_ = true;
+  }
+}
+
 // ------------------------------------------------------------------ Spoolman
 void TaggerApp::lookup_tag_(int slot) {
   const int reader = slot;  // callback below indexes slots_ by this
@@ -366,7 +382,9 @@ void TaggerApp::build_ui() {
   this->btn_clear_ = make_button(scr, LV_SYMBOL_REFRESH " Clear", C_IDLE, 110, 4, 110, 32, &TaggerApp::on_clear_clicked_,
                                  this);
   lv_obj_set_style_text_font(lv_obj_get_child(this->btn_clear_, 0), &lv_font_montserrat_14, 0);
-  this->lbl_conn_ = make_label(scr, &lv_font_montserrat_14, C_DIM, 230, 12, 238);
+  this->lbl_conn_ = make_label(scr, &lv_font_montserrat_14, C_DIM, 230, 12, 140);
+  this->lbl_bat_ = make_label(scr, &lv_font_montserrat_14, C_DIM, 376, 12, 92);
+  lv_obj_set_style_text_align(this->lbl_bat_, LV_TEXT_ALIGN_RIGHT, 0);
   lv_obj_set_style_text_align(this->lbl_conn_, LV_TEXT_ALIGN_RIGHT, 0);
 
   // ---- spool card (left)
@@ -427,11 +445,29 @@ void TaggerApp::render_() {
   char buf[96];
   // connection
   if (!this->online_known_)
-    lv_label_set_text(this->lbl_conn_, "Spoolman: connecting...");
+    lv_label_set_text(this->lbl_conn_, "Connecting...");
   else
-    lv_label_set_text(this->lbl_conn_, this->online_ ? "Spoolman " LV_SYMBOL_OK : "Spoolman offline " LV_SYMBOL_WARNING);
+    lv_label_set_text(this->lbl_conn_, this->online_ ? "Spoolman " LV_SYMBOL_OK : LV_SYMBOL_WARNING " Offline");
   lv_obj_set_style_text_color(this->lbl_conn_, lv_color_hex(this->online_ || !this->online_known_ ? C_DIM : C_ERR),
                               0);
+
+  // battery
+  if (!this->bat_known_) {
+    lv_label_set_text(this->lbl_bat_, "");
+  } else if (!this->bat_present_) {
+    lv_label_set_text(this->lbl_bat_, this->bat_usb_ ? LV_SYMBOL_USB : "");
+  } else {
+    const char *icon = this->bat_pct_ >= 90   ? LV_SYMBOL_BATTERY_FULL
+                       : this->bat_pct_ >= 65 ? LV_SYMBOL_BATTERY_3
+                       : this->bat_pct_ >= 40 ? LV_SYMBOL_BATTERY_2
+                       : this->bat_pct_ >= 15 ? LV_SYMBOL_BATTERY_1
+                                              : LV_SYMBOL_BATTERY_EMPTY;
+    snprintf(buf, sizeof(buf), "%s%s %d%%", (this->bat_charging_ || this->bat_usb_) ? LV_SYMBOL_CHARGE " " : "", icon,
+             this->bat_pct_);
+    lv_label_set_text(this->lbl_bat_, buf);
+  }
+  lv_obj_set_style_text_color(this->lbl_bat_,
+                              lv_color_hex(this->bat_present_ && this->bat_pct_ < 15 && !this->bat_usb_ ? C_ERR : C_DIM), 0);
 
   // tag pills
   int present = 0;

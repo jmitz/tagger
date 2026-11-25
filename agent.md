@@ -302,6 +302,16 @@ isn't lost:
   3. UIDs that match two *different* spools: proposed to block and warn.
   4. Confirm the stability threshold with real spools.
 
+## Battery (verified 2026‑11‑25, v0.2)
+LiPo in the board's battery socket, managed by the AXP2101 (I²C 0x34). The YAML
+`interval` (10 s) reads **only**: 0x00 (bit3 battery present, bit5 VBUS),
+0x01 (bits6:5 direction, 01 = charging), 0x34/0x35 VBAT mV (14-bit) and 0xA4 SoC %.
+The fuel gauge (0x18 bit3) and VBAT ADC (0x30 bit0) are already enabled at
+power-up, so the firmware writes **nothing** to the PMU. Don't add PMU writes
+without asking. `TaggerApp::set_battery()` shows a top-bar battery icon + %,
+with ⚡ on USB or charging, and red below 15 % on battery. Reading at the
+time: 4.10 V, 100 %, charge done on USB.
+
 ## Recommendations / next steps
 **Active work is tracked in [TODO.md](TODO.md)**: next is the two-tag spool
 capture above. The list below is the older backlog.

@@ -94,6 +94,28 @@ ota:
   - platform: esphome
     password: !secret ota_password
 
+# Battery: AXP2101 PMU (I2C 0x34) - read-only. Its fuel gauge and VBAT ADC are
+# already enabled at power-up (0x18 bit3, 0x30 bit0), so nothing is written.
+#   0x00 bit3 battery present, bit5 VBUS (USB) good
+#   0x01 bits6:5 current direction (01 charging, 10 discharging)
+#   0x34/0x35 VBAT in mV (14-bit), 0xA4 state of charge in %
+interval:
+  - interval: 10s
+    then:
+      - lambda: |-
+          auto rd = [&](uint8_t reg) -> uint8_t {
+            uint8_t v = 0;
+            id(bus_board).write_readv(0x34, &reg, 1, &v, 1);
+            return v;
+          };
+          uint8_t st1 = rd(0x00), st2 = rd(0x01);
+          int mv = ((rd(0x34) & 0x3F) << 8) | rd(0x35);
+          int pct = rd(0xA4);
+          bool present = st1 & 0x08;
+          bool usb = st1 & 0x20;
+          bool charging = ((st2 >> 5) & 3) == 1;
+          id(app).set_battery(present, pct > 100 ? 100 : pct, mv, usb, charging);
+
 # ------------------------------------------------------------------ buses
 i2c:
   - id: bus_board

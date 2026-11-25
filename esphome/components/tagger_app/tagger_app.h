@@ -43,6 +43,7 @@ class TaggerApp : public Component {
   void on_tag(int reader, const std::string &uid, const std::string &format);
   void on_tag_removed(int reader);
   void on_weight(float grams);
+  void set_battery(bool present, int percent, int millivolts, bool usb, bool charging);
   void build_ui();  // call from lvgl on_boot
 
   // ---- Component
@@ -127,6 +128,10 @@ class TaggerApp : public Component {
   bool loaded_since_latch_{false};  // weight exceeded reset_threshold while tags latched
   uint32_t empty_since_{0};         // millis when weight fell below threshold (0 = not empty)
 
+  // battery (AXP2101)
+  bool bat_known_{false}, bat_present_{false}, bat_usb_{false}, bat_charging_{false};
+  int bat_pct_{0}, bat_mv_{0};
+
   std::string status_;
   bool status_error_{false};
   bool dirty_{true};
@@ -134,6 +139,7 @@ class TaggerApp : public Component {
   // widgets
   bool ui_built_{false};
   lv_obj_t *lbl_conn_{nullptr};
+  lv_obj_t *lbl_bat_{nullptr};
   lv_obj_t *swatch_{nullptr};
   lv_obj_t *lbl_head_{nullptr};
   lv_obj_t *lbl_name_{nullptr};
