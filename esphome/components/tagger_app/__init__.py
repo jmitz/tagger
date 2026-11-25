@@ -12,6 +12,7 @@ CONF_READER_PREFIX = "reader_prefix"
 CONF_STABLE_BAND = "stable_band"
 CONF_STABLE_TIME = "stable_time"
 CONF_RESET_THRESHOLD = "reset_threshold"
+CONF_PLACEHOLDER_FILAMENT = "placeholder_filament"
 
 tagger_app_ns = cg.esphome_ns.namespace("tagger_app")
 TaggerApp = tagger_app_ns.class_("TaggerApp", cg.Component)
@@ -24,6 +25,7 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Optional(CONF_STABLE_BAND, default=2.0): cv.positive_float,
         cv.Optional(CONF_STABLE_TIME, default="2s"): cv.positive_time_period_milliseconds,
         cv.Optional(CONF_RESET_THRESHOLD, default=30.0): cv.positive_float,
+        cv.Optional(CONF_PLACEHOLDER_FILAMENT, default="Unassigned (set filament)"): cv.string_strict,
     }
 ).extend(cv.COMPONENT_SCHEMA)
 
@@ -36,3 +38,4 @@ async def to_code(config):
     cg.add(var.set_stable_band(config[CONF_STABLE_BAND]))
     cg.add(var.set_stable_ms(config[CONF_STABLE_TIME].total_milliseconds))
     cg.add(var.set_reset_threshold(config[CONF_RESET_THRESHOLD]))
+    cg.add(var.set_placeholder_filament(config[CONF_PLACEHOLDER_FILAMENT]))

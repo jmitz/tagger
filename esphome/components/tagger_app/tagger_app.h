@@ -36,6 +36,7 @@ class TaggerApp : public Component {
   void set_stable_band(float g) { this->stable_band_ = g; }
   void set_stable_ms(uint32_t ms) { this->stable_ms_ = ms; }
   void set_reset_threshold(float g) { this->reset_threshold_ = g; }
+  void set_placeholder_filament(const std::string &n) { this->placeholder_name_ = n; }
   void set_tare_action(std::function<void()> f) { this->tare_action_ = std::move(f); }
 
   // ---- inputs (called from YAML lambdas)
@@ -75,6 +76,11 @@ class TaggerApp : public Component {
   void render_picker_list_();
   void show_pick_confirm_(int id);
   void link_tags_to_(int id, std::vector<std::string> uids);
+  // new spool: placeholder filament -> POST /spool -> link tags -> re-report scans
+  void new_spool_();
+  void create_spool_with_filament_(int filament_id);
+  void report_scans_();   // re-POST /tag/scan for latched tags (browser auto-navigate)
+  void refresh_spool_();  // periodic GET /spool/{id} so web edits show up
   bool both_tags_() const { return this->slots_[0].present && this->slots_[1].present; }
   int unlinked_reader_() const;
   bool can_send_() const;
@@ -92,6 +98,11 @@ class TaggerApp : public Component {
   static void on_pick_back_(lv_event_t *e);
 
   HttpWorker http_;
+  std::string placeholder_name_{"Unassigned (set filament)"};
+  int placeholder_id_{0};
+  bool creating_{false};
+  uint32_t new_armed_until_{0};  // two-tap confirm for "New spool"
+  uint32_t last_refresh_{0};
   std::string reader_prefix_{"tagger"};
   std::function<void()> tare_action_;
 
@@ -138,6 +149,7 @@ class TaggerApp : public Component {
   lv_obj_t *btn_tare_{nullptr};
   lv_obj_t *btn_clear_{nullptr};
   lv_obj_t *lbl_link_{nullptr};
+  lv_obj_t *lbl_send_{nullptr};
   lv_obj_t *scr_main_{nullptr};
   // picker screen
   std::vector<Spool> pick_spools_;

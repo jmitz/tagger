@@ -36,6 +36,14 @@ void TaggerApp::loop() {
     if (s.present && s.spool_id < 0 && !s.looking && this->online_)
       this->lookup_tag_(i);
   }
+  if (this->spool_.valid() && !this->sending_ && !this->fetching_spool_ && now - this->last_refresh_ > 5000) {
+    this->last_refresh_ = now;
+    this->refresh_spool_();
+  }
+  if (this->new_armed_until_ != 0 && now > this->new_armed_until_) {
+    this->new_armed_until_ = 0;
+    this->dirty_ = true;
+  }
   if (this->dirty_ && this->ui_built_) {
     this->dirty_ = false;
     this->render_();
@@ -146,8 +154,10 @@ void TaggerApp::lookup_tag_(int slot) {
   s.looking = true;
   std::string uid = s.uid;
   char rid[40], rname[40];
-  snprintf(rid, sizeof(rid), "%s-r%d", this->reader_prefix_.c_str(), s.reader + 1);
-  snprintf(rname, sizeof(rname), "Tagger reader %d", s.reader + 1);
+  // Both physical readers report as ONE Spoolman reader, so a browser pairs
+  // with "the Tagger" (Settings > Tag Scanning) rather than half of it.
+  snprintf(rid, sizeof(rid), "%s", this->reader_prefix_.c_str());
+  snprintf(rname, sizeof(rname), "Tagger");
   this->http_.request("POST", "/api/v1/tag/scan", scan_body(uid, rid, rname, s.format),
                       [this, reader, uid](const HttpResult &r) {
                         TagSlot &s = this->slots_[reader];
@@ -268,6 +278,7 @@ void TaggerApp::link_missing_tag_() {
                             this->slots_[reader].spool_id = id;
                           this->set_status_("Tag " + uid + " linked to #" + std::to_string(id));
                           this->fetch_spool_(id);
+                          this->report_scans_();
                         } else {
                           this->set_status_("Link failed: " + error_detail(r.body), true);
                         }
@@ -402,6 +413,7 @@ void TaggerApp::build_ui() {
   lv_obj_set_width(this->lbl_stable_, 150);
   lv_obj_set_style_text_align(this->lbl_stable_, LV_TEXT_ALIGN_CENTER, 0);
   this->btn_send_ = make_button(side, "Send\nweight", C_OK, 0, 62, 150, 84, &TaggerApp::on_send_clicked_, this);
+  this->lbl_send_ = lv_obj_get_child(this->btn_send_, 0);
   this->btn_link_ = make_button(side, "Link tag", C_WARN, 0, 154, 150, 52, &TaggerApp::on_link_clicked_, this);
   this->lbl_link_ = lv_obj_get_child(this->btn_link_, 0);
   this->btn_tare_ = make_button(side, "Tare", C_BLUE, 0, 214, 150, 52, &TaggerApp::on_tare_clicked_, this);
@@ -463,7 +475,7 @@ void TaggerApp::render_() {
     } else if (present == 2) {
       bool looking = this->slots_[0].looking || this->slots_[1].looking || this->fetching_spool_;
       head = this->mismatch_ ? "Tag mismatch" : looking ? "Looking up..." : "Unknown spool";
-      sub = this->mismatch_ || looking ? "" : "Tap \"Link to spool\"";
+      sub = this->mismatch_ || looking ? "" : "New spool, or link to one";
     }
     lv_label_set_text(this->lbl_head_, head);
     lv_label_set_text(this->lbl_name_, sub);
@@ -501,7 +513,14 @@ void TaggerApp::render_() {
   lv_obj_set_style_text_color(this->lbl_stable_, lv_color_hex(!std::isnan(this->captured_) ? 0x7FD69B : C_DIM), 0);
 
   // buttons
-  if (this->can_send_())
+  bool new_mode = this->both_unknown_();
+  if (new_mode)
+    lv_label_set_text(this->lbl_send_, this->creating_ ? "Creating..." :
+                                           this->new_armed_until_ ? "Tap again\nto create" : LV_SYMBOL_PLUS " New\nspool");
+  else
+    lv_label_set_text(this->lbl_send_, "Send\nweight");
+  lv_obj_set_style_bg_color(this->btn_send_, lv_color_hex(new_mode && this->new_armed_until_ ? C_WARN : C_OK), 0);
+  if ((new_mode && !this->creating_ && !this->linking_) || (!new_mode && this->can_send_()))
     lv_obj_remove_state(this->btn_send_, LV_STATE_DISABLED);
   else
     lv_obj_add_state(this->btn_send_, LV_STATE_DISABLED);
@@ -515,7 +534,11 @@ void TaggerApp::render_() {
 }
 
 void TaggerApp::on_send_clicked_(lv_event_t *e) {
-  static_cast<TaggerApp *>(lv_event_get_user_data(e))->send_weight_();
+  auto *app = static_cast<TaggerApp *>(lv_event_get_user_data(e));
+  if (app->both_unknown_())
+    app->new_spool_();
+  else
+    app->send_weight_();
 }
 void TaggerApp::on_link_clicked_(lv_event_t *e) {
   auto *app = static_cast<TaggerApp *>(lv_event_get_user_data(e));
@@ -534,6 +557,133 @@ void TaggerApp::on_tare_clicked_(lv_event_t *e) {
   app->reset_capture_();
   app->samples_.clear();
   app->set_status_("Scale tared");
+}
+
+// ------------------------------------------------------------------ new spool
+static std::string url_encode(const std::string &s) {
+  std::string out;
+  char hex[4];
+  for (unsigned char ch : s) {
+    if (isalnum(ch) || ch == '-' || ch == '_' || ch == '.' || ch == '~')
+      out += (char) ch;
+    else {
+      snprintf(hex, sizeof(hex), "%%%02X", ch);
+      out += hex;
+    }
+  }
+  return out;
+}
+
+void TaggerApp::new_spool_() {
+  if (!this->both_unknown_() || this->creating_)
+    return;
+  uint32_t now = millis();
+  if (this->new_armed_until_ == 0) {  // first tap: arm for 4 s
+    this->new_armed_until_ = now + 4000;
+    this->dirty_ = true;
+    return;
+  }
+  this->new_armed_until_ = 0;
+  this->creating_ = true;
+  this->set_status_("Creating new spool...");
+  if (this->placeholder_id_ > 0) {
+    this->create_spool_with_filament_(this->placeholder_id_);
+    return;
+  }
+  // Find (or create once) the placeholder filament new spools start on.
+  this->http_.request(
+      "GET", "/api/v1/filament?name=" + url_encode(this->placeholder_name_), "", [this](const HttpResult &r) {
+        JsonDocument doc = json::parse_json(r.body);
+        if (r.ok() && doc.is<JsonArrayConst>()) {
+          for (JsonObjectConst f : doc.as<JsonArrayConst>())
+            if (this->placeholder_name_ == (f["name"] | ""))
+              this->placeholder_id_ = f["id"] | 0;
+        }
+        if (this->placeholder_id_ > 0) {
+          this->create_spool_with_filament_(this->placeholder_id_);
+          return;
+        }
+        if (!r.ok()) {
+          this->creating_ = false;
+          this->set_status_("Spoolman unreachable", true);
+          return;
+        }
+        std::string body = json::build_json([this](JsonObject root) {
+          root["name"] = this->placeholder_name_;
+          root["density"] = 1.24;
+          root["diameter"] = 1.75;
+          root["comment"] = "Placeholder used by Tagger for newly added spools. Change the spool's filament in "
+                            "Spoolman.";
+        });
+        this->http_.request("POST", "/api/v1/filament", body, [this](const HttpResult &r) {
+          JsonDocument d = json::parse_json(r.body);
+          if (r.ok() && (d["id"] | 0) > 0) {
+            this->placeholder_id_ = d["id"] | 0;
+            ESP_LOGI(TAG, "Created placeholder filament #%d '%s'", this->placeholder_id_,
+                     this->placeholder_name_.c_str());
+            this->create_spool_with_filament_(this->placeholder_id_);
+          } else {
+            this->creating_ = false;
+            this->set_status_("Could not create placeholder filament: " + error_detail(r.body), true);
+          }
+        });
+      });
+}
+
+void TaggerApp::create_spool_with_filament_(int filament_id) {
+  float g = this->captured_;
+  std::string body = json::build_json([&](JsonObject root) {
+    root["filament_id"] = filament_id;
+    char note[96];
+    if (!std::isnan(g))
+      snprintf(note, sizeof(note), "Added by Tagger. Gross weight when added: %.0f g.", g);
+    else
+      snprintf(note, sizeof(note), "Added by Tagger.");
+    root["comment"] = note;
+  });
+  this->http_.request("POST", "/api/v1/spool", body, [this](const HttpResult &r) {
+    Spool s;
+    if (!r.ok() || !parse_spool(r.body, s)) {
+      this->creating_ = false;
+      this->set_status_("Create spool failed: " + (r.status < 0 ? std::string("unreachable") : error_detail(r.body)),
+                        true);
+      return;
+    }
+    ESP_LOGI(TAG, "Created spool #%d", s.id);
+    std::vector<std::string> uids;
+    for (auto &t : this->slots_)
+      if (t.present && t.spool_id == 0)
+        uids.push_back(t.uid);
+    this->creating_ = false;
+    this->linking_ = true;
+    this->set_status_("New spool #" + std::to_string(s.id) + ": fill in details in Spoolman");
+    this->link_tags_to_(s.id, uids);
+  });
+}
+
+void TaggerApp::report_scans_() {
+  for (auto &s : this->slots_) {
+    if (!s.present)
+      continue;
+    std::string uid = s.uid;
+    this->http_.request("POST", "/api/v1/tag/scan", scan_body(uid, this->reader_prefix_, "Tagger", s.format),
+                        [uid](const HttpResult &r) {
+                          ESP_LOGD(TAG, "Re-reported %s: %d", uid.c_str(), r.status);
+                        });
+  }
+}
+
+void TaggerApp::refresh_spool_() {
+  int id = this->spool_.id;
+  this->http_.request("GET", "/api/v1/spool/" + std::to_string(id), "", [this, id](const HttpResult &r) {
+    if (id != this->spool_.id || this->sending_)
+      return;
+    Spool s;
+    if (r.ok() && parse_spool(r.body, s)) {
+      this->spool_ = s;
+      this->dirty_ = true;
+    }
+  });
 }
 
 // ------------------------------------------------------------------ spool picker
@@ -670,6 +820,7 @@ void TaggerApp::link_tags_to_(int id, std::vector<std::string> uids) {
     this->resolve_();
     if (this->spool_id_ == id)
       this->fetch_spool_(id);
+    this->report_scans_();
     return;
   }
   std::string uid = uids.back();

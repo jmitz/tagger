@@ -246,6 +246,20 @@ Architecture (phase 1):
   above `reset_threshold` 30 g while latched, then below it for 1.5 s) or the
   Clear button. Don't go back to clearing on tag removal: the readers flicker
   and can both see the same tag.
+- **New spool flow (user requirement 2026‑11‑25, verified):** unknown tag pair →
+  the big button becomes "+ New spool" (two-tap confirm) → find or create the
+  placeholder filament `Unassigned (set filament)` (config
+  `placeholder_filament`; Spoolman requires `filament_id`) → `POST /spool`
+  (comment holds the gross weight when added) → link both tags → re-report both
+  scans so the paired browser auto-navigates to the new spool, where the user
+  fills in the details in the **Spoolman web UI** (the intended workflow).
+  While a spool is shown, the device re-reads it every 5 s so web edits appear.
+- **Browser integration:** Spoolman web UI → Settings → Tag Scanning →
+  Auto-navigate + reader. Both physical readers report as ONE reader
+  `reader_id: tagger`, name "Tagger". Scans are re-reported after any link
+  (Spoolman re-broadcasts when the match changes). An unlinked scan only shows
+  a toast in the web UI: the web UI cannot create spools from scans, which is
+  why the device creates the record.
 - **Link to spool… picker** (both tags unknown): `GET /spool` → scrollable list
   on a second LVGL screen (`lv_screen_load`), confirm bar, then
   `POST /spool/{id}/tag` for each unlinked UID in turn.

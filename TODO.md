@@ -36,6 +36,12 @@ answering; these were the stated defaults, so revisit if the user objects):
 - **No deletion on the device** (user decision 2026‑11‑25): delete spools,
   filaments and vendors in the Spoolman web UI. The device can archive.
 
+**Workflow change (2026‑11‑25):** new spools are created *on the Tagger* as
+a bare record (placeholder filament + linked tags), and the paired Spoolman web
+page opens for the details. Done and verified. This reduces the need for
+on-device forms. Re-check with the user whether phases 2–5 are still wanted as
+planned before building them.
+
 Phase 1 behaviour as built (user-directed changes during testing):
 - **Tags latch** in arrival order from either reader: the first UID is held
   until a second, *different* UID arrives, then both are held. Tags leaving a
