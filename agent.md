@@ -218,6 +218,12 @@ Secrets: `esphome/secrets.yaml` (gitignored; template in
   probing for NDEF with default keys). This is harmless: the UID still works.
 
 ## Touch Spoolman client (requested 2026‑11‑20; phase 1 done and verified 2026‑11‑25)
+
+**Final scope (user, 2026‑11‑25):** Scan screen + spool list for adding tags
+to existing spools. Everything else (editing spools, filaments, vendors) is
+done in the **Spoolman web UI**, which the device opens via tag-scan
+auto-navigate. Phases 2–5 from TODO.md are cancelled. Don't build on-device
+editors unless the user asks.
 Goal: implement all capabilities of the Spoolman web UI on the device,
 touch-first, minimal text entry, including add and update spool. The phase plan
 and design rules are in [TODO.md](TODO.md).

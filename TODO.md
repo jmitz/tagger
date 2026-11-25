@@ -1,6 +1,6 @@
 # TODO
 
-## Goal: touch-first Spoolman client (requested 2026‑11‑20)
+## Goal: touch-first Spoolman client (requested 2026‑11‑20; scope reduced 2026‑11‑25, see below)
 The Tagger UI should implement **all capabilities of the Spoolman web UI**
 (`http://spoolman.local:7912`, Spoolman 0.27), touch-first with minimal text
 entry, including **adding new spools** and **updating existing ones**.
@@ -15,17 +15,15 @@ Design rules:
 - Not feasible on the device: label/QR printing, CSV export (backup can be
   triggered).
 
-Phases (test on the device and commit each):
-1. **[done, verified on device 2026‑11‑25]** Framework (component, async HTTP,
-   Spoolman model) + Scan screen: native tag linking, two-tag **latching**
-   capture, stable weight, single Send weight (`PUT /spool/{id}/measure`),
-   Link tag, **Link to spool… picker** (pulled forward from phase 2), Clear, Tare.
-2. **Next.** Spools: list with filter chips (material, vendor, location, archived), detail,
-   edit, use filament, measure, archive (no delete), tag link/unlink.
-3. New spool wizard: filament from own list or external catalog → weights
-   (filament defaults / scale) → location → link the tags on the readers.
-4. Filaments and vendors: list, detail, add, edit (no delete; colour palette, temperature steppers).
-5. Locations (rename), global search, settings/info/health, extra fields, backup.
+**Scope decision (user, 2026‑11‑25): the device UI is the Scan screen (as
+built) plus the spool list used to add tags to an existing spool ("Link to
+spool…").** New spools are created on the Tagger and edited in the Spoolman web
+UI. The earlier phases 2–5 (on-device spool/filament/vendor editors, search,
+settings) are **cancelled**. Don't build them unless the user asks again.
+
+Possible small improvements to the spool list (only if asked):
+- Quick filter chips (material / vendor) or a "no tags yet" filter at the top.
+- Sort by most recently used.
 
 Decisions taken for phase 1 (the user said "continue with phase 1" without
 answering; these were the stated defaults, so revisit if the user objects):
