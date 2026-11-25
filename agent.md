@@ -253,6 +253,10 @@ Architecture (phase 1):
   latched, linked via the picker, weight captured (337.1 g), and Send weight
   updated Spoolman correctly.
 
+**No deletion on the device** (user decision 2026‑11‑25): deleting spools,
+filaments and vendors stays in the Spoolman web UI. Don't add DELETE calls.
+The device may archive spools.
+
 ## Two-tag spool capture (requested 2026‑11‑19; now part of phase 1)
 Full spec and checklist: [TODO.md](TODO.md). Summary, so the design intent
 isn't lost:

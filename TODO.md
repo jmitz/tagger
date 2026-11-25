@@ -21,10 +21,10 @@ Phases (test on the device and commit each):
    capture, stable weight, single Send weight (`PUT /spool/{id}/measure`),
    Link tag, **Link to spool… picker** (pulled forward from phase 2), Clear, Tare.
 2. **Next.** Spools: list with filter chips (material, vendor, location, archived), detail,
-   edit, use filament, measure, archive, delete (confirm), tag link/unlink.
+   edit, use filament, measure, archive (no delete), tag link/unlink.
 3. New spool wizard: filament from own list or external catalog → weights
    (filament defaults / scale) → location → link the tags on the readers.
-4. Filaments and vendors: list, detail, add, edit, delete (colour palette, temperature steppers).
+4. Filaments and vendors: list, detail, add, edit (no delete; colour palette, temperature steppers).
 5. Locations (rename), global search, settings/info/health, extra fields, backup.
 
 Decisions taken for phase 1 (the user said "continue with phase 1" without
@@ -33,7 +33,8 @@ answering; these were the stated defaults, so revisit if the user objects):
   `POST /tag/scan`) instead of the `nfc_uid` extra field (it held no data).
 - **Either tag identifies the spool.** Both should be linked, and the Scan screen
   offers "Link tag" for the one that isn't.
-- Deletion from the device: not yet decided (relevant from phase 2). Ask.
+- **No deletion on the device** (user decision 2026‑11‑25): delete spools,
+  filaments and vendors in the Spoolman web UI. The device can archive.
 
 Phase 1 behaviour as built (user-directed changes during testing):
 - **Tags latch** in arrival order from either reader: the first UID is held
