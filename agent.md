@@ -313,6 +313,8 @@ with ⚡ on USB or charging, and red below 15 % on battery. Reading at the
 time: 4.10 V, 100 %, charge done on USB.
 
 ## Recommendations / next steps
+**Next requested item: an on-device Wi-Fi screen** (see TODO.md). It is the
+one approved addition to the UI scope.
 **Active work is tracked in [TODO.md](TODO.md)**: next is the two-tag spool
 capture above. The list below is the older backlog.
 

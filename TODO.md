@@ -98,6 +98,44 @@ Send weight button instead of one per reader.
   in Spoolman.
 - Lifting the spool resets the screen.
 
+## Next: on-device Wi-Fi screen (requested 2026‑11‑25)
+
+**Goal.** Change the Tagger's Wi-Fi network from the touchscreen, at any time,
+without flashing. This is the one addition to the agreed UI scope (Scan screen +
+spool list).
+
+**Why.** The ESPHome fallback hotspot ("Tagger Setup" + captive portal at
+192.168.4.1) already works without flashing, but it only starts when the
+saved network has been unreachable for 90 s, so it can't switch networks
+while the current one still works.
+
+### Flow
+1. A **Wi-Fi button** (icon) in the Scan screen top bar opens a Wi-Fi screen.
+2. The screen shows the current network, signal and IP, plus a **scrollable
+   list of nearby networks** from a scan (SSID, signal bars, lock icon),
+   sorted by signal, with a Rescan button.
+3. Tap a network → password entry with the **on-screen keyboard** (show/hide
+   toggle). Open networks skip this step.
+4. **Connect** → save the credentials to flash and reconnect. Show progress, then
+   success (new IP) or failure. On failure, offer "Back to previous network".
+5. Back → Scan screen.
+
+### Implementation notes
+- ESPHome: `wifi::global_wifi_component` (`start_scanning()`,
+  `get_scan_result()`, `save_wifi_sta(ssid, password)`, which persists to
+  preferences and overrides the compiled `secrets.yaml` credentials).
+  Check the exact API in the installed ESPHome version before coding.
+- Keyboard + textarea widgets are already enabled via the YAML `_uses` page.
+- Never log or display the password. Mask it by default.
+- Keep the captive-portal fallback hotspot as a safety net.
+- The Spoolman URL stays compiled in (not part of this screen).
+
+### Done when
+- Switching to a different working network from the touchscreen works, and
+  the Tagger comes back on the new network after a reboot.
+- A wrong password shows an error, and the device recovers (old network or
+  hotspot) without needing USB.
+
 ## Backlog
 - Wire PN532 RSTPDN (side-row pad) to GPIO39/40 and add hard reset on hang.
 - Test OpenSpool NDEF tags (NTAG215) end to end.
